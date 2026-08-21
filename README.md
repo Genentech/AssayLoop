@@ -168,8 +168,9 @@ broken policy report a diluted number.
 ## Screen sets
 
 Screens come from [`Genentech/assaybench`](https://huggingface.co/datasets/Genentech/assaybench)
-on the Hugging Face Hub — 1,349 train / 20 validation / 20 test genome-wide CRISPR screens
-from BioGRID ORCS. `--screen-set` resolves:
+on the Hugging Face Hub — 1,901 CRISPR screens from BioGRID ORCS, split temporally by
+`yearfold0` into 1,349 train / 218 validation / 334 test. The two sets the paper reports on
+are curated 20-screen subsets of the validation and test folds. `--screen-set` resolves:
 
 | Value | What |
 |---|---|
@@ -177,7 +178,13 @@ from BioGRID ORCS. `--screen-set` resolves:
 | `public_validation` | the curated 20-screen validation set (checkpoint selection) |
 | `public_train` | the full 1,349-screen training fold |
 | `public_val` | the full 218-screen validation fold |
+| `public_test` | the full 334-screen test fold |
 | `/path/to.yaml` | your own list |
+
+`public_test` is the whole fold `public` is drawn from, for a broader evaluation than the
+paper's. One caveat: the shipped screen-description embeddings cover the curated 20 of that
+fold, not all 334, so ASSAYFORMER on `public_test` needs an `OPENAI_API_KEY` — it raises and
+says so rather than substituting a different vector. Every other method runs offline.
 
 `--screen <dataset_name,...>` overrides the set and runs exact screens.
 

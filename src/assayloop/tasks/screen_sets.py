@@ -235,6 +235,10 @@ def load_screens(
     - Elif ``target_set == "public_val"``, return every screen on the
       public biogrid VALIDATION fold (``yearfold0 == "validation"``) —
       used as the prompt-optimization (GEPA) validation set.
+    - Elif ``target_set == "public_test"``, return every screen on the
+      public biogrid TEST fold (``yearfold0 == "test"``) — the whole fold
+      the paper's curated ``public`` set is drawn from. Not what the paper
+      reports; use ``"public"`` for that.
     - Elif ``target_set`` names a manifest shipped with assaybench (see
       :func:`assaybench.data.screen_sets.available_manifests`, e.g.
       ``"lopo-drug-test"``), use that manifest.
@@ -251,7 +255,7 @@ def load_screens(
             f"target_set={target_set!r} selected the Genentech-internal screen "
             "corpus, which is not part of the public release. Public screen "
             "sets: 'public' (paper test set), 'public_validation', "
-            "'public_train', 'public_val'."
+            "'public_train', 'public_val', 'public_test'."
         )
     if target_set in _RETIRED_PUBLIC_SCREEN_SETS:
         raise ValueError(
@@ -271,12 +275,14 @@ def load_screens(
             "public",
             "public_train",
             "public_val",
+            "public_test",
             "public_validation",
             "public_val_curated",
         ):
             # Resolve names against the public dataset even without a YAML.
-            # ``public`` => test fold; the validation variants and
-            # ``public_val`` => validation fold; ``public_train`` => train.
+            # ``public`` and ``public_test`` => test fold; the validation
+            # variants and ``public_val`` => validation fold; ``public_train``
+            # => train.
             _public_split = {
                 "public_train": "train",
                 "public_val": "validation",
@@ -319,6 +325,21 @@ def load_screens(
         }
         wanted = None
         default_strict = False
+    elif target_set == "public_test":
+        # All screens on the public biogrid TEST fold (no curated subset).
+        # The paper reports on the curated 20 (``public``); this is the whole
+        # fold they were drawn from, for anyone who wants the broader
+        # evaluation. Note that the shipped screen-description embeddings
+        # cover only the curated 20 of this fold, so ASSAYFORMER on the full
+        # fold needs an OPENAI_API_KEY -- it raises rather than substituting.
+        source = {
+            "dataset": "Genentech/assaybench",
+            "config": "biogrid",
+            "split_field": "yearfold0",
+            "split_value": "test",
+        }
+        wanted = None
+        default_strict = False
     elif target_set in available_manifests():
         # A manifest shipped with assaybench by its own name, e.g. the LOPO
         # folds ("lopo-drug-test").
@@ -334,7 +355,8 @@ def load_screens(
         raise ValueError(
             f"target_set={target_set!r} is neither a screen-set name nor a "
             "readable manifest path. Names in this repo: "
-            f"{', '.join(sorted(_CURATED_ALIASES))}, public_train, public_val. "
+            f"{', '.join(sorted(_CURATED_ALIASES))}, public_train, public_val, "
+            "public_test. "
             f"Manifests shipped with assaybench: {', '.join(available_manifests())}."
         )
 

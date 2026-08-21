@@ -54,8 +54,11 @@ from assayloop.tasks import load_screens
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("build_text_embedding_cache")
 
-# Every screen set a public user can ask for. The union of their descriptions is
-# exactly what we are allowed to ship.
+# The screen sets whose descriptions ship pre-embedded: the paper's two curated
+# sets and the two whole folds behind them. ``public_test`` -- the full 334-screen
+# test fold -- is deliberately absent: the paper reports on the curated 20, and
+# the other 314 would have to be embedded fresh rather than re-keyed from the
+# research cache. Ask for it explicitly to add it, with a key set.
 PUBLIC_SCREEN_SETS = (
     "public",
     "public_validation",

@@ -27,6 +27,10 @@ One entry per distinct screen description across the public screen sets:
 Distinct texts total fewer than the sum of the rows because the smaller
 evaluation sets are subsets of the training fold.
 
+Not covered: the other 314 screens of the biogrid test fold (`public_test`).
+The paper reports on the curated 20, so those are what ships; evaluating
+ASSAYFORMER on the full test fold needs an `OPENAI_API_KEY`.
+
 ## Why this ships
 
 ASSAYFORMER conditions on a 1536-d embedding of the screen description.

@@ -179,7 +179,7 @@ def _load_lm_config_or_exit(lm_config: Optional[str]):
 def run(
     model: str = typer.Option("knn", help="See make_model() in experiment/runner.py for the full list."),
     acq: str = typer.Option("greedy", help="random|greedy|ucb|bio_ucb|llm_single (open-vocab, AssayBench-style)|llm_single_blind (ablation: history shown without hit labels). The LLM->AssayFormer handoff is its own command, eval-ranker-handoff."),
-    screen_set: str = typer.Option("public", help="public|public_train|public_val|/path/to.yaml"),
+    screen_set: str = typer.Option("public", help="public|public_train|public_val|public_test|/path/to.yaml"),
     screen: Optional[str] = typer.Option(None, help="Comma-sep dataset_names to run (overrides screen_set)"),
     batch_size: int = typer.Option(100),
     n_steps: Optional[int] = typer.Option(None, help="Cap on AL steps"),
@@ -293,7 +293,7 @@ def sweep(
     models: str = typer.Option("null,knn,rf", help="Comma-sep model names"),
     acqs: str = typer.Option("random,greedy,ucb", help="Comma-sep acquisition names"),
     seeds: str = typer.Option("0", help="Comma-sep RNG seeds"),
-    screen_set: str = typer.Option("public", help="public|public_train|public_val|/path/to.yaml"),
+    screen_set: str = typer.Option("public", help="public|public_train|public_val|public_test|/path/to.yaml"),
     screen: Optional[str] = typer.Option(None),
     batch_size: int = typer.Option(100),
     n_steps: Optional[int] = typer.Option(None),
@@ -415,7 +415,7 @@ def _print_sweep_grid(rows):
 def collect_dataset(
     screen_set: str = typer.Option(
         "public_train",
-        help="public|public_train|public_val|/path/to.yaml. "
+        help="public|public_train|public_val|public_test|/path/to.yaml. "
         "public_train = biogrid train fold (held out from the public test "
         "set used for evaluation).",
     ),
@@ -1392,7 +1392,7 @@ def eval_ranker(
         "public",
         "--screen-set",
         help=(
-            "public|public_validation|public_val|public_train|all."
+            "public|public_validation|public_val|public_test|public_train|all."
         ),
     ),
     batch_size: int = typer.Option(100, help="AL batch size."),

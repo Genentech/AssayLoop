@@ -1,0 +1,54 @@
+# Configuration for collecting gpt-5.6-sol predictions.
+#
+# Mirrors collect-gpt-5.5.yaml: reached through an OpenAI-compatible gateway
+# fronting the Azure-hosted models.
+#
+# Endpoint and credentials come from the environment, NOT this file:
+#   LLM_GATEWAY_BASE_URL=https://<openai-compatible-gateway>/v1
+#   LLM_GATEWAY_API_KEY=<key>
+# Both must be set; an unset variable raises rather than producing a 401.
+# The paper's numbers were collected through an OpenAI-compatible gateway
+# fronting the vendor APIs, so any such proxy (or the vendor endpoint itself)
+# works here.
+#
+# Verified 2026-07-10: a live /v1/chat/completions call with model="gpt-5.6-sol"
+# returns HTTP 200 and echoes model="gpt-5.6-sol" (no rerouting). Self-report was
+# "OpenAI GPT-5" (GPT-5 family; minor version not self-identifiable — the exact
+# 5.6-sol build can't be confirmed from the response alone).
+#
+# Usage:
+#   assayloop run  ... --acq llm_single --lm-config configs/lm/collect-gpt-5.6-sol.yaml
+#   assayloop sweep ... --acq llm_single --lm-config configs/lm/collect-gpt-5.6-sol.yaml
+
+defaults:
+  - collect-predictions
+
+model_name: "gpt-5.6-sol"
+
+lm:
+  provider: "local"
+  model: "gpt-5.6-sol"
+  api_base: "${LLM_GATEWAY_BASE_URL}"
+  api_key: "${LLM_GATEWAY_API_KEY}"
+  max_tokens: 64000
+  temperature: 1.0
+
+  # gpt-5.6-sol's Azure content-safety filter blocks the CRISPR prompts
+  # intermittently (400), in episodes that have lasted ~70 min. AL steps are
+  # sequential and a single exhausted step yields an empty batch that can't be
+  # backfilled without redoing the whole screen. So retry effectively forever,
+  # bounded by a wall-clock circuit breaker that comfortably exceeds any
+  # observed outage. The safety-400 is classified retryable in llm/client.py.
+  max_retries: -1            # retry until success or the elapsed cap below
+  retry_max_elapsed_s: 10800 # 3 h ceiling per call (>> the ~70 min episodes seen)
+  retry_max_backoff: 60      # poll ~once/min during an outage
+
+# --- Native Azure fallback (uncomment & fill in if NOT using the gateway) ---
+# lm:
+#   provider: "azure"
+#   model: "gpt-5.6-sol"            # Azure *deployment* name
+#   api_base: "https://<your-azure-resource>.openai.azure.com/"
+#   api_key: "<AZURE_API_KEY>"
+#   api_version: "2024-12-01-preview"
+#   max_tokens: 64000
+#   temperature: 1.0

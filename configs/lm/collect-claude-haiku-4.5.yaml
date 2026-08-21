@@ -1,0 +1,22 @@
+# Configuration for collecting Claude Haiku 4.5 predictions.
+# Mirrors collect-claude-sonnet-4.6.yaml so assayloop's LLM acquisitions
+# match the AssayBench preset.
+#
+# Provider is "anthropic": credentials come from the environment (.env),
+# NOT this file:
+#   ANTHROPIC_API_KEY=sk-ant-...   (https://console.anthropic.com/settings/keys)
+#   ANTHROPIC_BASE_URL=...         (optional; only for an Anthropic-compatible gateway)
+#
+# Usage:
+#   assayloop run  ... --acq llm_single --lm-config configs/lm/collect-claude-haiku-4.5.yaml
+#   assayloop sweep ... --acq llm_single --lm-config configs/lm/collect-claude-haiku-4.5.yaml
+
+defaults:
+  - collect-predictions
+
+model_name: "claude-haiku-4.5-20251001"
+
+lm:
+  provider: "anthropic"
+  model: "claude-haiku-4-5-20251001"
+  max_tokens: 64000

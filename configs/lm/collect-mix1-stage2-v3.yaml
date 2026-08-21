@@ -1,0 +1,45 @@
+# Configuration for collecting predictions from the mix1_stage2_v3 checkpoint
+# (global_step1750) -- a ~122B Qwen3.5-MoE (Qwen3_5MoeForConditionalGeneration).
+# Text-only collection. This is the AssayLLM eval config (paper S4.3); the
+# checkpoint itself is not released with this repo.
+#
+# Serve it with vLLM >= 0.22.0 (native Qwen3.5 support: its qwen3_5.py loader
+# fuses the split in_proj_qkv/_z/_a/_b, and the arch loads without vision
+# weights). The model directory must be the vLLM-converted export
+# (language_model.model.* prefix, emb_* dropped):
+#   vllm serve <model-dir> \
+#     --served-model-name mix1-stage2-v3 --tensor-parallel-size 4 \
+#     --dtype bfloat16 --max-model-len 40960 --gpu-memory-utilization 0.90 \
+#     --limit-mm-per-prompt '{"image":0,"video":0}' --enforce-eager \
+#     --tool-call-parser qwen3_coder --reasoning-parser qwen3 \
+#     --enable-auto-tool-choice --port 8061 --api-key token-abc123
+
+defaults:
+  - collect-predictions
+
+model_name: "mix1-stage2-v3"
+
+# Sampling matches the AssayLLM training-side eval (temp 1.0, top_p 0.95, top_k 20,
+# enable_thinking). max_tokens capped under --max-model-len 40960.
+lm:
+  provider: "local"
+  model: "mix1-stage2-v3"          # must match --served-model-name above
+  max_tokens: 32768
+  temperature: 1.0
+  top_p: 0.95
+  top_k: 20
+  min_p: 0.0
+  presence_penalty: 0.0
+  repetition_penalty: 1.0
+  api_base: "http://localhost:8061/v1"   # self-hosted on the 4xGPU node
+  api_key: "token-abc123"
+  chat_template_kwargs:
+    enable_thinking: true
+
+collection:
+  n_runs: 5
+  collect_train: true
+  collect_val: true
+  collect_test: true
+  save_frequency: 5
+  num_workers: 8

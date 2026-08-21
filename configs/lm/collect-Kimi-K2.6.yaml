@@ -1,0 +1,70 @@
+# Configuration for collecting predictions from local LLM (Kimi-K2.6).
+# Same format as collect-GLM-5.1.yaml. Consumed by assayloop via
+# `--lm-config` (only the `lm` and `model_name` blocks are read).
+
+# Inherit base collection config (vendored alongside this file)
+defaults:
+  - collect-predictions
+
+# Model name for organizing outputs
+model_name: "Kimi-K2.6"
+
+# LM configuration for local model.
+# NOTE: `model` must match the name your vLLM/SGLang server advertises
+# (its --served-model-name, or the HF repo id if unset), and `api_base`
+# must point at THAT server's host:port. GLM-5.1 uses 8060; if you serve
+# Kimi alongside it, give it a DIFFERENT port and update `api_base` here
+# (a port mismatch silently produces connection errors).
+lm:
+  provider: "local"
+  model: "moonshotai/Kimi-K2.6"
+  # Kimi thinks FIRST then answers, so the budget must cover the reasoning
+  # trace + the gene list. 128000 was a trap: at this server's throughput a
+  # single generation could think for HOURS and blow past every timeout. 16k
+  # is plenty for a reasoning trace + 100 gene symbols and keeps each call
+  # bounded. Raise only if you see answers truncated (finish_reason=length
+  # with empty content).
+  max_tokens: 16000
+  # Thinking mode (recommended for trace collection): temperature 1.0.
+  # For Instant mode use temperature 0.6 (see note below).
+  temperature: 1.0
+  top_p: 0.95
+  api_base: "http://localhost:8062/v1"  # <-- set to your Kimi server's port
+  api_key: "token-abc123"
+  # Per-call client timeout. Kimi-K2.6 (1T MoE) decodes slowly, so a full
+  # reasoning generation can take many minutes — well past the 300s default.
+  # Size this above the realistic generation time for max_tokens above.
+  timeout: 1800
+  # Thinking mode ON. NOTE: Kimi toggles thinking via
+  # chat_template_kwargs.`thinking` (NOT GLM's `enable_thinking`). Leaving
+  # enable_thinking=true here keeps the loader from sending any toggle, so
+  # the server default (thinking ON) applies — which is what we want for
+  # reasoning-trace collection.
+  chat_template_kwargs:
+    enable_thinking: true
+  # Never let a transient timeout (or an empty completion) silently turn an
+  # AL step into a zero-gene batch — that contaminates the trace/metrics.
+  # Retry transient errors forever (with capped exponential backoff)...
+  max_retries: -1
+  retry_initial_backoff: 2.0
+  retry_max_backoff: 60.0
+  # ...but cap the TOTAL wall-clock per call so "retry forever" can't spin for
+  # hours against a wedged/too-slow server (as happened with the old 128k
+  # budget). After ~30 min of failed retries the call fails loudly instead.
+  retry_max_elapsed_s: 1800
+  # NOTE: empty-answer handling is command-scoped, NOT set here. `run` allows
+  # empty answers; `collect-dataset` retries empties up to max_empty_retries.
+  max_empty_retries: 8
+
+# Instant mode (no <think> trace): set temperature: 0.6 above and disable
+# thinking. For vLLM/SGLang that requires chat_template_kwargs.thinking=false
+# (Kimi's key), which the current loader does not emit — ask if you want
+# Instant-mode support wired through.
+
+# Collection settings
+collection:
+  n_runs: 5  # Increase this later to expand runs (e.g., 5 -> 10 will add 5 more runs)
+  collect_train: true
+  collect_val: true
+  collect_test: true
+  save_frequency: 5  # Save intermediate results every N examples (default: 5)

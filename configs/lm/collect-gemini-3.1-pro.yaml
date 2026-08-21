@@ -1,0 +1,32 @@
+# Configuration for collecting Gemini 3.1 Pro predictions through an
+# OpenAI-compatible gateway.
+#
+# Endpoint and credentials come from the environment, NOT this file:
+#   LLM_GATEWAY_BASE_URL=https://<openai-compatible-gateway>/v1
+#   LLM_GATEWAY_API_KEY=<key>
+# Both must be set; an unset variable raises rather than producing a 401.
+# The paper's numbers were collected through an OpenAI-compatible gateway
+# fronting the vendor APIs, so any such proxy (or the vendor endpoint itself)
+# works here.
+#
+# The gateway used for the paper mapped gemini-3.1-pro -> gemini-3.1-pro-preview
+# on Google AI.
+# Verified 2026-06-27: model field returns gemini-3.1-pro consistently
+# (no rerouting).
+#
+# Usage:
+#   assayloop run  ... --acq llm_single --lm-config configs/lm/collect-gemini-3.1-pro.yaml
+#   assayloop sweep ... --acq llm_single --lm-config configs/lm/collect-gemini-3.1-pro.yaml
+
+defaults:
+  - collect-predictions
+
+model_name: "gemini-3.1-pro"
+
+lm:
+  provider: "local"
+  model: "gemini-3.1-pro"
+  api_base: "${LLM_GATEWAY_BASE_URL}"
+  api_key: "${LLM_GATEWAY_API_KEY}"
+  max_tokens: 64000
+  temperature: 1.0

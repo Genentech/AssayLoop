@@ -1,0 +1,48 @@
+# Configuration for collecting predictions from Qwen3.6-27B (local).
+# Copied from the AssayBench Qwen collection config format and
+# updated to Qwen3.6 with the thinking-mode sampling preset from
+# https://huggingface.co/Qwen/Qwen3.6-27B
+# Consumed by assayloop via `--lm-config` (only the `lm` / `model_name`
+# blocks are read).
+#
+# Serve with (adjust port / served-model-name to taste):
+#   ./serve.sh Qwen/Qwen3.6-27B --reasoning-parser qwen3 \
+#     --enable-auto-tool-choice --tool-call-parser qwen3_coder \
+#     --language-model-only --port 8100 --api-key token-abc123
+
+# Inherit base collection config (vendored alongside this file)
+defaults:
+  - collect-predictions
+
+# Model name for organizing outputs
+model_name: "qwen3.6-27b"
+
+# LM configuration for local model.
+# Thinking-mode sampling preset for general tasks (per the Qwen3.6 model card):
+#   temperature=1.0, top_p=0.95, top_k=20, min_p=0.0,
+#   presence_penalty=0.0, repetition_penalty=1.0
+# NOTE: `model` must match your vLLM --served-model-name (or the HF repo id
+# if unset), and `api_base` must point at that server's host:port.
+lm:
+  provider: "local"
+  model: "Qwen/Qwen3.6-27B"
+  max_tokens: 256000
+  temperature: 1.0
+  top_p: 0.95
+  top_k: 20
+  min_p: 0.0
+  presence_penalty: 0.0
+  repetition_penalty: 1.0
+  api_base: "http://localhost:8061/v1"
+  api_key: "token-abc123"
+  chat_template_kwargs:
+    enable_thinking: true  # thinking mode ON
+
+# Collection settings
+collection:
+  n_runs: 5
+  collect_train: true
+  collect_val: true
+  collect_test: true
+  save_frequency: 5
+  num_workers: 8

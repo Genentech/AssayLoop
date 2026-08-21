@@ -1,0 +1,30 @@
+# Configuration for collecting GPT-5.5 predictions through an
+# OpenAI-compatible gateway.
+#
+# Endpoint and credentials come from the environment, NOT this file:
+#   LLM_GATEWAY_BASE_URL=https://<openai-compatible-gateway>/v1
+#   LLM_GATEWAY_API_KEY=<key>
+# Both must be set; an unset variable raises rather than producing a 401.
+# The paper's numbers were collected through an OpenAI-compatible gateway
+# fronting the vendor APIs, so any such proxy (or the vendor endpoint itself)
+# works here.
+#
+# Verified 2026-06-27: model field returns gpt-5.5 consistently
+# (no rerouting).
+#
+# Usage:
+#   assayloop run  ... --acq llm_single --lm-config configs/lm/collect-gpt-5.5.yaml
+#   assayloop sweep ... --acq llm_single --lm-config configs/lm/collect-gpt-5.5.yaml
+
+defaults:
+  - collect-predictions
+
+model_name: "gpt-5.5"
+
+lm:
+  provider: "local"
+  model: "gpt-5.5"
+  api_base: "${LLM_GATEWAY_BASE_URL}"
+  api_key: "${LLM_GATEWAY_API_KEY}"
+  max_tokens: 64000
+  temperature: 1.0

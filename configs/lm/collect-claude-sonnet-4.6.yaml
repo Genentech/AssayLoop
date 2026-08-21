@@ -1,0 +1,20 @@
+# Configuration for collecting Claude Sonnet 4.6 predictions.
+#
+# Provider is "anthropic": credentials come from the environment (.env),
+# NOT this file:
+#   ANTHROPIC_API_KEY=sk-ant-...   (https://console.anthropic.com/settings/keys)
+#   ANTHROPIC_BASE_URL=...         (optional; only for an Anthropic-compatible gateway)
+#
+# Usage:
+#   assayloop run  ... --acq llm_single --lm-config configs/lm/collect-claude-sonnet-4.6.yaml
+#   assayloop sweep ... --acq llm_single --lm-config configs/lm/collect-claude-sonnet-4.6.yaml
+
+defaults:
+  - collect-predictions
+
+model_name: "claude-sonnet-4.6"
+
+lm:
+  provider: "anthropic"
+  model: "claude-sonnet-4-6"
+  max_tokens: 64000

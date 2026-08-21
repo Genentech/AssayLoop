@@ -1,0 +1,43 @@
+# Configuration for collecting predictions from local LLM (GLM-5.1)
+# Copied from the AssayBench collect-GLM-5.yaml format and bumped
+# to GLM-5.1. Consumed by assayloop via `--lm-config` (only the `lm` and
+# `model_name` blocks are read).
+
+# Inherit base collection config (vendored alongside this file)
+defaults:
+  - collect-predictions
+
+# Model name for organizing outputs
+model_name: "GLM-5.1"
+
+# LM configuration for local model.
+# NOTE: `model` must match the name your vLLM server advertises
+# (its --served-model-name, or the HF repo id if unset), and `api_base`
+# must point at that server's host:port.
+lm:
+  provider: "local"
+  model: "zai-org/GLM-5.1-FP8"  # FP8 variant — BF16 is too large for 8xB200
+  max_tokens: 128000
+  temperature: 1.0
+  top_p: 0.95
+  api_base: "http://localhost:8060/v1"
+  api_key: "token-abc123"
+  chat_template_kwargs:
+    enable_thinking: true  # thinking mode ON
+  # Never let a transient timeout silently turn an AL step into a zero-gene
+  # batch — that contaminates the trace/metrics. Retry transient errors forever
+  # (with capped exponential backoff) until the call succeeds.
+  max_retries: -1
+  retry_initial_backoff: 2.0
+  retry_max_backoff: 60.0
+  # NOTE: empty-answer handling is command-scoped, NOT set here. `run` allows
+  # empty answers; `collect-dataset` retries empties up to max_empty_retries.
+  max_empty_retries: 8
+
+# Collection settings
+collection:
+  n_runs: 5  # Increase this later to expand runs (e.g., 5 -> 10 will add 5 more runs)
+  collect_train: true
+  collect_val: true
+  collect_test: true
+  save_frequency: 5  # Save intermediate results every N examples (default: 5)

@@ -1,0 +1,90 @@
+[project]
+name = "assayloop"
+version = "0.1.0"
+description = "Sequential experimental design for genome-scale CRISPR screens: LLM warm-start handing off to a trained ranker."
+readme = "README.md"
+authors = [
+    {name = "Edward De Brouwer", email = "debroue1@gene.com"},
+    {name = "Carl Edwards", email = "edwardc24@gene.com"},
+]
+urls = {Homepage = "https://github.com/genentech/assayloop"}
+requires-python = ">=3.11"
+license = {file = "LICENSE"}
+dependencies = [
+    # Screen corpus (Genentech/assaybench on the Hub) and ranking metrics.
+    "assaybench>=0.2.0",
+    # Core scientific stack. scipy and tqdm are imported directly (12 and 2
+    # modules); they used to arrive transitively via scikit-learn/transformers,
+    # which is how assaybench 0.1.0 shipped an ImportError.
+    "numpy>=1.24",
+    "pandas>=2.0",
+    "scipy>=1.10",
+    "scikit-learn>=1.4",
+    "tqdm>=4.66",
+    "pyyaml>=6.0",
+    "python-dotenv>=1.0",
+    # Hugging Face datasets: the public screen corpus loader.
+    "datasets>=4.0.0",
+    # LLM clients. `openai` backs the text-embedding-3-small DESC token
+    # (amortized/text_embed.py) as well as the vLLM path.
+    "openai>=1.40",
+    # >=0.107: the agent_ranker baseline uses `anthropic.beta_tool` and
+    # `client.beta.messages.tool_runner`, which 0.40 predates. This is the
+    # version the agent runs were verified against.
+    "anthropic>=0.107",
+    # Baselines collector (DSPy-based, optional path)
+    "dspy>=2.5",
+    "requests>=2.28",
+    # Plotting: every figure script under src/assayloop/scripts/.
+    "matplotlib>=3.8",
+    # CLI niceties
+    "typer>=0.12",
+    "rich>=13.0",
+    "wandb>=0.27.1",
+    "umap-learn>=0.5.12",
+    "transformers>=5.10.2",
+]
+
+[project.optional-dependencies]
+# torch is a 500 MB+ install and every module that needs it imports it
+# lazily, so it is opt-in:
+#   uv sync --extra torch
+# Required for AssayFormer (train-ranker / eval-ranker / the amortized
+# package) and for the Bayesian MLP baseline (`--model bayesian_mlp`).
+torch = ["torch>=2.3"]
+# Deprecated alias for the same extra.
+mlp = ["torch>=2.3"]
+
+[project.scripts]
+assayloop = "assayloop.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/assayloop"]
+
+[tool.uv]
+# uv's cache and this project live on different filesystems here, so hardlinks
+# aren't possible; copy instead of emitting a warning on every sync.
+link-mode = "copy"
+
+[tool.uv.sources]
+# PyPI's default torch wheel is built for CUDA 13.0 (+cu130), which the GPU
+# hosts' CUDA 12.8 drivers cannot run. Pin torch to the cu128 build index
+# (newest is 2.11.0+cu128); cu128 runtimes also run on newer (13.x) drivers.
+torch = { index = "pytorch-cu128" }
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "ruff>=0.5",
+    "jupyterlab>=4.0",
+    "ipykernel>=6.29",
+]

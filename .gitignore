@@ -1,0 +1,43 @@
+# Environment and secrets
+.env
+
+# Python build / cache
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+build/
+dist/
+
+# assayloop runtime data (gitignored, machine-local)
+viking_data/
+scratch/
+assembly_output/
+output/
+output_old/
+other_output/
+wandb/
+.beads/
+logs/
+
+# Big caches and third-party assets (downloaded from external sources by
+# scripts/fetch_gene_sets.sh and scripts/fetch_presage_cache.sh -- never
+# committed, and nothing silently substitutes for them).
+src/assayloop/data/presage_cache/
+src/assayloop/data/ortholog_cache/
+src/assayloop/data/gene_embeddings_cache/
+src/assayloop/data/gene_sets/*.gmt
+src/assayloop/data/gene_sets/reactome_interactions.txt
+src/assayloop/data/gene_sets/ReactomePathways*.gmt
+src/assayloop/data/gene_sets/ReactomePathways*.txt
+
+reactome.graphdb.tgz
+
+
+# Editor noise
+.vscode/
+.idea/
+*.swp
+
+
+

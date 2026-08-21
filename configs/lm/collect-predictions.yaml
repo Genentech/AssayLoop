@@ -1,0 +1,55 @@
+# Configuration for collecting LLM predictions
+
+# Model name for organizing outputs
+model_name: "gpt-5-mini"
+
+# Collection settings
+collection:
+  n_runs: 1  # Number of inference runs per example
+  collect_train: true  # Collect predictions on train split
+  collect_val: true  # Collect predictions on val split
+  collect_test: true  # Collect predictions on test split
+  num_workers: 8  # Number of parallel workers (1 = sequential, >1 = parallel)
+  retry_failed: true  # Re-run examples where all predictions failed (empty)
+
+# LM configuration
+lm:
+  provider: "azure"  # Options: azure, openai, anthropic, local
+  model: "gpt-5-mini"  # Model name or deployment name
+  max_tokens: 32000
+  temperature: 1.0
+
+  # For local LLMs only
+  api_base: "http://localhost:8000/v1"
+  api_key: "token-abc123"
+  timeout: 180  # seconds per request; cancels stuck thinking loops
+  num_retries: 8
+
+  # Should only matter for deepseek v3.2, but just in case:
+  chat_template_kwargs:
+    enable_thinking: true
+
+# Dataset settings - BioGRID ScreensQA
+dataset:
+  dataset_path: "./data/biogrid_v0.4_combined"  # Path to screensQA dataset
+  split_type: "year"  # Options: author, year, cell_line, phenotype
+  fold: 0  # Options: 0, 1, 2, 3 (except for split_type="year" which only has fold 0)
+  max_examples: null  # null = all examples
+
+# Additional dataset splits to collect alongside train/val/test.
+# Each split can have multiple dataset paths (concatenated).
+# use_existing_prompt: true = use the dataset's `prompt` column; false = generate via biogrid template
+# display_library_genes: append gene list to prompt when gene count < 2000
+additional_splits:
+  novel_public_dataset:
+    paths:
+      - "./data/novel_public_2026_dataset/"
+    use_existing_prompt: false
+    display_library_genes: false
+
+# Output settings
+output:
+  save_dir: "./output/multi_model_ensemble/"
+
+# Random seed
+seed: 42

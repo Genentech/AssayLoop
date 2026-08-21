@@ -34,6 +34,7 @@ ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / "src"))
 
 from assayloop import config  # noqa: E402  (after the sys.path insert above)
+from assayloop.metrics.effective_pathways import effective_pathways  # noqa: E402
 
 # Search order: your own results, then the optional shared directory, then
 # the downloaded published bundle (ASSAYLOOP_RESULTS / ASSAYLOOP_SHARED_PATH
@@ -243,6 +244,7 @@ def per_screen_stats(sd: dict, key: str) -> tuple[float | None, float | None]:
 
 def compute_diversity(run_ids: list[str], scorer) -> dict[str, float]:
     vendi_per_run, pathway_per_run = [], []
+    screen_batches = []
     for rid in run_ids:
         fp = _find_run_result(rid)
         if fp is None:
@@ -251,16 +253,19 @@ def compute_diversity(run_ids: list[str], scorer) -> dict[str, float]:
             r = json.loads(fp.read_text())
         except (json.JSONDecodeError, OSError):
             continue
-        v_steps, p_steps = [], []
+        v_steps, p_steps, batches = [], [], []
         for step in r.get("steps", []):
             batch = step.get("acquired_batch")
             if not batch or len(batch) < 2:
                 continue
+            batches.append(batch)
             scores = scorer.score([], None, None, [], acquired_batch=batch)
             if "batch_vendi_ratio" in scores:
                 v_steps.append(scores["batch_vendi_ratio"])
             if "batch_pathway_overlap_vs_random" in scores:
                 p_steps.append(scores["batch_pathway_overlap_vs_random"])
+        if batches:
+            screen_batches.append(batches)
         if v_steps:
             vendi_per_run.append(float(np.mean(v_steps)))
         if p_steps:
@@ -272,6 +277,8 @@ def compute_diversity(run_ids: list[str], scorer) -> dict[str, float]:
     if pathway_per_run:
         out["pathway_mean"] = float(np.mean(pathway_per_run))
         out["pathway_std"] = float(np.std(pathway_per_run))
+    if screen_batches:
+        out.update(effective_pathways(screen_batches))
     return out
 
 
@@ -298,6 +305,8 @@ def compute_diversity_from_batches(jsonl_batches: list[list[list[str]]], scorer)
     if pathway_per_screen:
         out["pathway_mean"] = float(np.mean(pathway_per_screen))
         out["pathway_std"] = float(np.std(pathway_per_screen))
+    if jsonl_batches:
+        out.update(effective_pathways(jsonl_batches))
     return out
 
 

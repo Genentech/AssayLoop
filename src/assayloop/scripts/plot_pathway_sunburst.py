@@ -16,12 +16,13 @@ category. Genes with no annotation are dropped; the annotated fraction is
 reported per method. The "Random" panel is the gene-universe composition, i.e.
 the expected composition of a uniformly drawn batch.
 
-Note the two footer stats come from a *different* annotation source and a
-different scale, so they are context, not a cross-check of the rings: VS and PO
-are per-100-gene-batch means (`batch_diversity.py`), and PO's Jaccard is taken
-over GO Biological Process (`config.GENE_SETS_SOURCE`), not Reactome. PO is a
-ratio to a random draw of the same library, hence exactly 1.00 for the
-reference panel by construction.
+Each panel reports the same metric at all three scopes of
+:mod:`assayloop.metrics.effective_pathways`, matching tab:baselines_results:
+EP-D in the hole (all picks pooled), EP-B and EP-S in the footer (per batch and
+per screen, averaged). All three are rarefied to fixed annotated-gene counts, so
+the scopes are *not* comparable to one another -- only down a column. The Random
+panel's EP-B/EP-S are uniform draws of the same size from the annotated
+universe, i.e. the reference value at each scope.
 
 Data comes from the cached full-genome run results (steps[].acquired_batch),
 20 test screens x 1000 picks per method. Aggregated once into
@@ -52,15 +53,15 @@ ANALYSIS = config.OUTPUT_PATH / "analysis"
 CACHE = ANALYSIS / "pathway_sunburst_data.json"
 OUT = ANALYSIS / "pathway_sunburst.png"
 
-# (panel title, run-dir glob prefix, VS%, PO from tab:baselines_results)
+# (panel title, run-dir glob prefix)
 # "Random" is synthesised from the gene universe, not from runs.
 METHODS = [
-    ("Random",                    None,                                    None, 1.00),
-    ("kNN baseline",              "sweep-fg-f2-fg-knn",                    57.6, 2.91),
-    ("BPMF",                      "sweep-fg-f2-fg-bpmf",                   53.2, 2.12),
-    ("Gemini-3.1-Pro",            "sweep-a79fd5ce",                        47.5, 4.39),
-    ("AssayFormer",               "sweep-fg-f2-fg-assayloop-s19",          55.9, 2.38),
-    ("AssayLoop (Gemini handoff)", "sweep-fg-f2-fg-handoff-gemini-s19-n3", 55.6, 3.06),
+    ("Random",                    None),
+    ("kNN baseline",              "sweep-fg-f2-fg-knn"),
+    ("BPMF",                      "sweep-fg-f2-fg-bpmf"),
+    ("Gemini-3.1-Pro",            "sweep-a79fd5ce"),
+    ("AssayFormer",               "sweep-fg-f2-fg-assayloop-s19"),
+    ("AssayLoop (Gemini handoff)", "sweep-fg-f2-fg-handoff-gemini-s19-n3"),
 ]
 
 N_CATS = 8          # inner-ring categories kept; the tail folds into "Other"
@@ -82,8 +83,8 @@ OTHER = "#a9a79f"
 
 def _gmt_membership() -> dict[str, list[str]]:
     """gene -> pathways, same 5-200 gene filtered GMT the PO metric uses."""
-    from assayloop.scripts.paper_handoff_timeline import _load_pathway_membership
-    return {g: sorted(ps) for g, ps in _load_pathway_membership().items()}
+    from assayloop.metrics.effective_pathways import gmt_membership
+    return {g: list(ps) for g, ps in gmt_membership().items()}
 
 
 def _weights(genes, membership, cat_of, sub_of):
@@ -122,24 +123,74 @@ def _run_genes(prefix: str) -> list[str]:
     return genes
 
 
+def _run_screen_batches(prefix: str) -> list[list[list[str]]]:
+    """``screen -> batch -> genes``, the shape ``effective_pathways`` wants."""
+    out = []
+    for rd in sorted(RUNS_DIR.glob(f"{prefix}-[0-9][0-9]-*")):
+        fp = rd / "result.json"
+        if not fp.is_file():
+            continue
+        r = json.loads(fp.read_text())
+        out.append([s.get("acquired_batch", []) for s in r.get("steps", [])])
+    return out
+
+
+def _rarefied_eff(genes, membership, m=None, r=None) -> float:
+    """``exp(H)`` over ``genes``, rarefied to ``m`` annotated genes.
+
+    Defaults to the EP-D reference count, so the hole number matches
+    tab:baselines_results. One pathway is drawn per gene per replicate, as in
+    the table -- the wedges below are the expectation of that assignment, so the
+    two agree by construction. Against the old fractional plug-in this shifts
+    the panels by 10-13% but leaves their ranking identical; see
+    :mod:`assayloop.metrics.effective_pathways` for why the plug-in cannot be
+    used at batch scope.
+    """
+    from assayloop.metrics.effective_pathways import (
+        M_DATASET, R_DATASET, SEED, _Unit)
+    pid_of: dict[str, int] = {}
+    for ps in membership.values():
+        for p in ps:
+            pid_of.setdefault(p, len(pid_of))
+    u = _Unit(genes, membership, pid_of)
+    rng = np.random.default_rng(SEED)
+    v = u.rarefied(m or M_DATASET, r or R_DATASET, rng)
+    # Too few annotated genes to hit the reference count: fall back to all of
+    # them, still averaging over the pathway assignment, rather than switching
+    # estimator mid-figure.
+    return u.rarefied(None, r or R_DATASET, rng) if v is None else v
+
+
 def build_cache() -> dict:
     hier = load_hierarchy()
     cat_of, sub_of = hier["category_of"], hier["subcategory_of"]
     membership = _gmt_membership()
 
+    from assayloop.metrics.effective_pathways import (
+        M_BATCH, M_SCREEN, R_BATCH, R_SCREEN, effective_pathways)
+
     out = {}
-    for title, prefix, _vs, _po in METHODS:
+    for title, prefix in METHODS:
         if prefix is None:
             genes = sorted(membership)                       # gene universe = random expectation
+            # No runs to batch up: a uniform draw of M_BATCH / M_SCREEN annotated
+            # genes from the universe *is* the reference value at those scopes.
+            ep_b = _rarefied_eff(genes, membership, M_BATCH, R_BATCH)
+            ep_s = _rarefied_eff(genes, membership, M_SCREEN, R_SCREEN)
         else:
             genes = _run_genes(prefix)
             if not genes:
                 raise SystemExit(f"no cached runs for {title!r} ({prefix}-NN-*)")
+            ep = effective_pathways(_run_screen_batches(prefix),
+                                    membership=membership)
+            ep_b, ep_s = ep["ep_batch"], ep["ep_screen"]
         by_cat, by_sub, sub_cat, by_path, n_ann, n_tot = _weights(
             genes, membership, cat_of, sub_of)
         out[title] = {
             "by_cat": by_cat, "by_sub": by_sub, "sub_cat": sub_cat,
-            "eff_pathways": _effective_n(by_path.values()),
+            "eff_pathways": _rarefied_eff(genes, membership),
+            "eff_pathways_raw": _effective_n(by_path.values()),
+            "ep_batch": ep_b, "ep_screen": ep_s,
             "n_picks": n_tot, "n_annotated": n_ann,
         }
         print(f"{title:32s} {n_tot:7d} picks  {n_ann / max(n_tot,1):5.1%} annotated  "
@@ -161,9 +212,9 @@ def _tint(hex_color: str, amount: float) -> tuple:
 
 
 def _effective_n(weights) -> float:
-    w = np.asarray(list(weights), float)
-    w = w[w > 0] / w.sum()
-    return float(math.exp(-(w * np.log(w)).sum()))
+    """exp(Shannon entropy); see :mod:`assayloop.metrics.effective_pathways`."""
+    from assayloop.metrics.effective_pathways import effective_n
+    return effective_n(weights)
 
 
 def draw(data: dict) -> None:
@@ -183,7 +234,7 @@ def draw(data: dict) -> None:
                              subplot_kw={"aspect": "equal"})
     fig.patch.set_facecolor(SURFACE)
 
-    for ax, (title, _prefix, vs, po) in zip(axes.ravel(), METHODS):
+    for ax, (title, _prefix) in zip(axes.ravel(), METHODS):
         d = data[title]
         ax.set_facecolor(SURFACE)
         ax.axis("off")
@@ -232,7 +283,7 @@ def draw(data: dict) -> None:
         eff = d["eff_pathways"]
         ax.text(0, 0.10, f"{eff:.0f}", ha="center", va="center", fontsize=15,
                 color=INK, fontweight="semibold")
-        ax.text(0, -0.14, "eff. pathways", ha="center", va="center", fontsize=6.2,
+        ax.text(0, -0.14, "EP-D", ha="center", va="center", fontsize=6.2,
                 color=MUTED)
 
         # direct labels on the inner wedges big enough to hold one; ink or white
@@ -252,7 +303,7 @@ def draw(data: dict) -> None:
 
         # square data window with headroom, so title/stat sit at a fixed
         # distance from the ring in every panel
-        stat = f"VS {vs:.1f}%   PO {po:.2f}" if vs is not None else "PO 1.00 (reference)"
+        stat = f"EP-B {d['ep_batch']:.1f}   EP-S {d['ep_screen']:.0f}"
         ax.set_xlim(-1.30, 1.30)
         ax.set_ylim(-1.30, 1.30)
         ax.text(0, 1.06, title, ha="center", va="bottom", fontsize=8.6, color=INK,

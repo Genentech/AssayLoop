@@ -28,6 +28,8 @@ import numpy as np
 from assaybench.benchmark.sequential import load_common_essentials
 from assayloop import config
 from assayloop.experiment.runner import RunConfig, make_model, run_one_screen
+from assayloop.metrics.effective_pathways import (
+    M_BATCH, M_DATASET, M_SCREEN, RETENTION, effective_pathways)
 from assayloop.tasks import load_screens
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -240,7 +242,20 @@ JSONL_METHODS = [
 # Transformer model -> AssayFormer; the handoff framework -> AssayLoop.
 # External baselines (Transformer + DAgger, generic LLM sections) unchanged.
 _DISPLAY = {
-    "Transformer": "AssayFormer",
+    # Citation keys live here, not in the METHODS labels above: those strings are
+    # the `results` dict keys and are matched literally by _BASE_LLM_SKIP and the
+    # section emitters, so editing them there would silently break row lookup.
+    r"BPMF~\cite{}": r"BPMF~\cite{Salakhutdinov2008-ad}",
+    r"Transformer + DAgger~\cite{}": r"Transformer + DAgger~\cite{Ross2011-wr}",
+    r"MAML (+BPMF)~\cite{}":
+        r"MAML (w/ BPMF embs.)~\cite{finn2017model,Salakhutdinov2008-ad}",
+    r"BioBO~\cite{}": r"BioBO~\cite{li2025biobo}",
+    r"Haystacks~\cite{}": r"Haystacks~\cite{Rubbi2026-oo}",
+    r"LLMNN~\cite{}": r"LLMNN~\cite{gupta2025llms}",
+    r"ICBR-EF~\cite{}": r"ICBR-EF~\cite{Wainrib2026-rs}",
+    r"BPMF\hfill + GRPO (NVR$_{\text{terminal}}$)":
+        r"BPMF\hfill + GRPO (EF$_{\text{terminal}}$)",
+    "Transformer": "AssayFormer (random embs.)",
     r"\quad + GRPO (= AssayLoop)": r"\quad + GRPO (= AssayFormer)",
     "GLM-5.1 - AssayLoop Handoff": r"GLM-5.1 $\rightarrow$ AssayFormer",
     "Gemini-3.1-Pro - AssayLoop Handoff": r"Gemini-3.1-Pro $\rightarrow$ AssayFormer",
@@ -550,21 +565,25 @@ def main():
 
     def _compute_diversity_from_runs(run_paths):
         vendi_per_run, pathway_per_run = [], []
+        screen_batches = []
         for fp in run_paths:
             try:
                 r = json.loads(fp.read_text())
             except (json.JSONDecodeError, OSError):
                 continue
-            v_steps, p_steps = [], []
+            v_steps, p_steps, batches = [], [], []
             for step in r.get("steps", []):
                 batch = step.get("acquired_batch")
                 if not batch or len(batch) < 2:
                     continue
+                batches.append(batch)
                 scores = scorer.score([], None, None, [], acquired_batch=batch)
                 if "batch_vendi_ratio" in scores:
                     v_steps.append(scores["batch_vendi_ratio"])
                 if "batch_pathway_overlap_vs_random" in scores:
                     p_steps.append(scores["batch_pathway_overlap_vs_random"])
+            if batches:
+                screen_batches.append(batches)
             if v_steps:
                 vendi_per_run.append(float(np.mean(v_steps)))
             if p_steps:
@@ -574,6 +593,8 @@ def main():
             out["vendi"] = float(np.mean(vendi_per_run))
         if pathway_per_run:
             out["pathway"] = float(np.mean(pathway_per_run))
+        if screen_batches:
+            out.update(effective_pathways(screen_batches))
         return out
 
     def _oob_frac_from_runs(run_paths):
@@ -664,6 +685,22 @@ def main():
             "shortfall": oob,
             "vendi": div.get("vendi"),
             "pathway": div.get("pathway"),
+            "ep_b": div.get("ep_batch"),
+            "ep_s": div.get("ep_screen"),
+            "ep_d": div.get("ep_dataset"),
+            "ep_ann": div.get("ep_n_annotated"),
+            "ep_drop": div.get("ep_n_dropped"),
+            "ep_bmin": div.get("ep_batch_ann_min"),
+            "ep_bp5": div.get("ep_batch_ann_p5"),
+            "ep_pmed": div.get("ep_batch_pick_med"),
+            "ep_pp5": div.get("ep_batch_pick_p5"),
+            "ep_fmin": div.get("ep_batch_full_min"),
+            "ep_fp5": div.get("ep_batch_full_p5"),
+            "ep_nfull": div.get("ep_batch_n_full"),
+            "ep_bret": div.get("ep_batch_retention"),
+            "ep_sret": div.get("ep_screen_retention"),
+            "ep_smin": div.get("ep_screen_ann_min"),
+            "ep_nb": div.get("ep_n_batches"),
             "nvr_ne": nvr_ne,
             "frac_ne": frac_ne,
             "pct_ess": pct_ess,
@@ -707,6 +744,22 @@ def main():
             "frac": float(np.mean(fracs)) if fracs else None,
             "shortfall": _oob_frac_from_runs(run_paths),
             "vendi": div.get("vendi"), "pathway": div.get("pathway"),
+            "ep_b": div.get("ep_batch"),
+            "ep_s": div.get("ep_screen"),
+            "ep_d": div.get("ep_dataset"),
+            "ep_ann": div.get("ep_n_annotated"),
+            "ep_drop": div.get("ep_n_dropped"),
+            "ep_bmin": div.get("ep_batch_ann_min"),
+            "ep_bp5": div.get("ep_batch_ann_p5"),
+            "ep_pmed": div.get("ep_batch_pick_med"),
+            "ep_pp5": div.get("ep_batch_pick_p5"),
+            "ep_fmin": div.get("ep_batch_full_min"),
+            "ep_fp5": div.get("ep_batch_full_p5"),
+            "ep_nfull": div.get("ep_batch_n_full"),
+            "ep_bret": div.get("ep_batch_retention"),
+            "ep_sret": div.get("ep_screen_retention"),
+            "ep_smin": div.get("ep_screen_ann_min"),
+            "ep_nb": div.get("ep_n_batches"),
             "pct_ess": float(np.mean(pcts)) if pcts else None,
         }
 
@@ -775,6 +828,22 @@ def main():
             "shortfall": oob,
             "vendi": div.get("vendi"),
             "pathway": div.get("pathway"),
+            "ep_b": div.get("ep_batch"),
+            "ep_s": div.get("ep_screen"),
+            "ep_d": div.get("ep_dataset"),
+            "ep_ann": div.get("ep_n_annotated"),
+            "ep_drop": div.get("ep_n_dropped"),
+            "ep_bmin": div.get("ep_batch_ann_min"),
+            "ep_bp5": div.get("ep_batch_ann_p5"),
+            "ep_pmed": div.get("ep_batch_pick_med"),
+            "ep_pp5": div.get("ep_batch_pick_p5"),
+            "ep_fmin": div.get("ep_batch_full_min"),
+            "ep_fp5": div.get("ep_batch_full_p5"),
+            "ep_nfull": div.get("ep_batch_n_full"),
+            "ep_bret": div.get("ep_batch_retention"),
+            "ep_sret": div.get("ep_screen_retention"),
+            "ep_smin": div.get("ep_screen_ann_min"),
+            "ep_nb": div.get("ep_n_batches"),
             "nvr_ne": nvr_ne,
             "frac_ne": frac_ne,
             "pct_ess": pct_ess,
@@ -832,6 +901,22 @@ def main():
         results[label] = {
             "nvr": nvr_adj, "nauc": nauc_adj, "frac": float(np.mean(fracs)),
             "shortfall": oob, "vendi": div.get("vendi"), "pathway": div.get("pathway"),
+            "ep_b": div.get("ep_batch"),
+            "ep_s": div.get("ep_screen"),
+            "ep_d": div.get("ep_dataset"),
+            "ep_ann": div.get("ep_n_annotated"),
+            "ep_drop": div.get("ep_n_dropped"),
+            "ep_bmin": div.get("ep_batch_ann_min"),
+            "ep_bp5": div.get("ep_batch_ann_p5"),
+            "ep_pmed": div.get("ep_batch_pick_med"),
+            "ep_pp5": div.get("ep_batch_pick_p5"),
+            "ep_fmin": div.get("ep_batch_full_min"),
+            "ep_fp5": div.get("ep_batch_full_p5"),
+            "ep_nfull": div.get("ep_batch_n_full"),
+            "ep_bret": div.get("ep_batch_retention"),
+            "ep_sret": div.get("ep_screen_retention"),
+            "ep_smin": div.get("ep_screen_ann_min"),
+            "ep_nb": div.get("ep_n_batches"),
             "nvr_ne": nvr_ne, "frac_ne": frac_ne, "pct_ess": pct_ess,
         }
         log.info("  NVR=%.2f  nAUC=%.4f  frac=%.3f  shortfall=%.3f", nvr_adj,
@@ -905,6 +990,22 @@ def main():
             "shortfall": oob,
             "vendi": div.get("vendi"),
             "pathway": div.get("pathway"),
+            "ep_b": div.get("ep_batch"),
+            "ep_s": div.get("ep_screen"),
+            "ep_d": div.get("ep_dataset"),
+            "ep_ann": div.get("ep_n_annotated"),
+            "ep_drop": div.get("ep_n_dropped"),
+            "ep_bmin": div.get("ep_batch_ann_min"),
+            "ep_bp5": div.get("ep_batch_ann_p5"),
+            "ep_pmed": div.get("ep_batch_pick_med"),
+            "ep_pp5": div.get("ep_batch_pick_p5"),
+            "ep_fmin": div.get("ep_batch_full_min"),
+            "ep_fp5": div.get("ep_batch_full_p5"),
+            "ep_nfull": div.get("ep_batch_n_full"),
+            "ep_bret": div.get("ep_batch_retention"),
+            "ep_sret": div.get("ep_screen_retention"),
+            "ep_smin": div.get("ep_screen_ann_min"),
+            "ep_nb": div.get("ep_n_batches"),
             "nvr_ne": nvr_ne,
             "frac_ne": frac_ne,
             "pct_ess": pct_ess,
@@ -995,6 +1096,22 @@ def main():
             "shortfall": float(np.mean(shortfalls)) if shortfalls else None,
             "vendi": div.get("vendi_mean"),
             "pathway": div.get("pathway_mean"),
+            "ep_b": div.get("ep_batch"),
+            "ep_s": div.get("ep_screen"),
+            "ep_d": div.get("ep_dataset"),
+            "ep_ann": div.get("ep_n_annotated"),
+            "ep_drop": div.get("ep_n_dropped"),
+            "ep_bmin": div.get("ep_batch_ann_min"),
+            "ep_bp5": div.get("ep_batch_ann_p5"),
+            "ep_pmed": div.get("ep_batch_pick_med"),
+            "ep_pp5": div.get("ep_batch_pick_p5"),
+            "ep_fmin": div.get("ep_batch_full_min"),
+            "ep_fp5": div.get("ep_batch_full_p5"),
+            "ep_nfull": div.get("ep_batch_n_full"),
+            "ep_bret": div.get("ep_batch_retention"),
+            "ep_sret": div.get("ep_screen_retention"),
+            "ep_smin": div.get("ep_screen_ann_min"),
+            "ep_nb": div.get("ep_n_batches"),
             "nvr_ne": float(np.mean(nvrs_ne)) if nvrs_ne else None,
             "frac_ne": float(np.mean(fracs_ne)) if fracs_ne else None,
             "pct_ess": float(np.mean(pcts_ess)) if pcts_ess else None,
@@ -1136,6 +1253,22 @@ def main():
             "shortfall": float(np.mean(shortfalls)) if shortfalls else None,
             "vendi": div.get("vendi_mean"),
             "pathway": div.get("pathway_mean"),
+            "ep_b": div.get("ep_batch"),
+            "ep_s": div.get("ep_screen"),
+            "ep_d": div.get("ep_dataset"),
+            "ep_ann": div.get("ep_n_annotated"),
+            "ep_drop": div.get("ep_n_dropped"),
+            "ep_bmin": div.get("ep_batch_ann_min"),
+            "ep_bp5": div.get("ep_batch_ann_p5"),
+            "ep_pmed": div.get("ep_batch_pick_med"),
+            "ep_pp5": div.get("ep_batch_pick_p5"),
+            "ep_fmin": div.get("ep_batch_full_min"),
+            "ep_fp5": div.get("ep_batch_full_p5"),
+            "ep_nfull": div.get("ep_batch_n_full"),
+            "ep_bret": div.get("ep_batch_retention"),
+            "ep_sret": div.get("ep_screen_retention"),
+            "ep_smin": div.get("ep_screen_ann_min"),
+            "ep_nb": div.get("ep_n_batches"),
             "nvr_ne": float(np.mean(nvrs_ne)) if nvrs_ne else None,
             "frac_ne": float(np.mean(fracs_ne)) if fracs_ne else None,
             "pct_ess": float(np.mean(pcts_ess)) if pcts_ess else None,
@@ -1152,7 +1285,36 @@ def main():
     if results.get("Qwen3.6-27B (base)", {}).get("nvr") is not None:
         results["Qwen3.6-27B"] = dict(results["Qwen3.6-27B (base)"])
 
-    NC = 8  # Method, NVR, nAUC, Frac, Shortfall, %Ess, Vendi, Path.Ov.
+    # Rarefaction diagnostics: which methods could not supply the fixed
+    # reference counts, and so lost units (or a whole EP-D cell) to the
+    # >= M_* filter. Read this before trusting a "-" in an EP column.
+    def _pct(x):
+        return "-" if x is None else f"{100 * x:.0f}%"
+
+    def _ok(x):
+        return "-" if x is None else f"{x:.0f}"
+
+    _ep_rows = [(lab, r) for lab, r in sorted(results.items())
+                if r and r.get("ep_ann") is not None]
+    _ep_bad = [(lab, r) for lab, r in _ep_rows
+               if r.get("ep_b") is None or r.get("ep_s") is None
+               or r.get("ep_d") is None]
+    log.info("EP rarefaction (M_batch=%d, M_screen=%d, M_dataset=%d, "
+             "retention>=%.0f%%): %d methods, %d with a dashed EP cell",
+             M_BATCH, M_SCREEN, M_DATASET, 100 * RETENTION,
+             len(_ep_rows), len(_ep_bad))
+    # Every method that lost a cell, plus why: low retention at batch/screen
+    # scope, or too few pooled annotated genes for M_DATASET.
+    for lab, r in sorted(_ep_bad, key=lambda kv: kv[1]["ep_ann"]):
+        log.info("  %-40s pooled=%7d full_p5=%6s screen_min=%6s "
+                 "ret(B/S)=%s/%s -> EP-B=%s EP-S=%s EP-D=%s",
+                 lab.split(" [")[0][:40], r["ep_ann"], r.get("ep_fp5"),
+                 r.get("ep_smin"),
+                 _pct(r.get("ep_bret")), _pct(r.get("ep_sret")),
+                 _ok(r.get("ep_b")), _ok(r.get("ep_s")), _ok(r.get("ep_d")))
+
+    # Method, NVR, nAUC, Frac, Shortfall, %Ess, Vendi, Path.Ov., EP-B, EP-S, EP-D
+    NC = 11
     DASHES = " & ".join(["-"] * (NC - 1)) + r" \\"
 
     def _row(label):
@@ -1168,7 +1330,12 @@ def main():
             f"{pct_val(r['shortfall'])} & "
             f"{pct_val(r.get('pct_ess'))} & "
             f"{pct_val(r.get('vendi'))} & "
-            f"{latex_val(r.get('pathway'))} \\\\"      # Path. Ov.: vs-random ratio
+            f"{latex_val(r.get('pathway'))} & "        # Path. Ov.: vs-random ratio
+            # Effective pathways, rarefied to a fixed annotated-gene count per
+            # scope; the three are NOT comparable to each other.
+            f"{latex_val(r.get('ep_b'), 1)} & "
+            f"{latex_val(r.get('ep_s'), 0)} & "
+            f"{latex_val(r.get('ep_d'), 0)} \\\\"
         )
 
     def _empty_row(label):
@@ -1185,13 +1352,19 @@ def main():
 
     # Build LaTeX table — identical structure to baselines.tex
     lines = []
-    lines.append(r"\begin{table*}[p]")
+    lines.append(r"\begin{table}[h!]")
     lines.append(r"\centering")
     lines.append(
-        r"\caption{Performance comparison of various baselines and ablations. "
+        r"\caption{Full performance comparison of various baselines and ablations. "
         r"Metrics evaluate enrichment factor (EF, hit rate relative to random), "
         r"normalized Area Under the Curve (nAUC), fraction of hits found, mean "
-        r"shortfall, Vendi Diversity, and batch pathway overlap versus random.}"
+        r"shortfall, Vendi Diversity, and batch pathway overlap versus random. "
+        r"EP-B/EP-S/EP-D are the effective number of Reactome pathways covered, at "
+        r"batch, screen and dataset scope: each gene is assigned to one of its "
+        r"pathways at random, and the scope is subsampled to a fixed annotated-gene "
+        rf"count ({M_BATCH}, {M_SCREEN} and {M_DATASET} respectively), so the three "
+        r"are bounded by their reference count and not comparable to one another. "
+        r"A dash marks a method that cannot supply that count.}"
     )
     lines.append(r"\label{tab:baselines_results}")
     lines.append(r"\setlength{\tabcolsep}{4pt}")
@@ -1203,13 +1376,14 @@ def main():
     # \textwidth and fits the row count on a full-page [p] float with footer
     # clearance.
     lines.append(r"\tiny")
-    lines.append(r"\begin{tabular}{@{}lccccccc@{}}")
+    lines.append(r"\begin{tabular}{@{}lcccccccccc@{}}")
     lines.append(r"\toprule")
     lines.append(
         r"\textbf{Method} & \textbf{EF} & \textbf{nAUC (\%)} & "
         r"\textbf{Frac.\ hits (\%)} & \textbf{Shortfall (\%)} & "
         r"\textbf{Ess.\ (\%)} & "
-        r"\textbf{Vendi (\%)} & \textbf{Path.\ Ov.} \\ \midrule"
+        r"\textbf{Vendi (\%)} & \textbf{Path.\ Ov.} & "
+        r"\textbf{EP-B} & \textbf{EP-S} & \textbf{EP-D} \\ \midrule"
     )
 
     # --- Base LLMs ---
@@ -1231,21 +1405,21 @@ def main():
             continue
         lines.append(_row(label))
 
-    # --- Classical, Heuristic & Search Baselines ---
-    lines.append(_section(r"Classical, Heuristic \& Search Baselines"))
+    # --- Adaptive Experimental Design Methods ---
+    lines.append(_section(r"Adaptive Experimental Design Methods"))
     lines.append(_row("Prior hit baseline"))
     lines.append(_row("kNN baseline"))
     lines.append(_row("RF (greedy)"))
     lines.append(_row("RF + UCB"))
     lines.append(_row(r"BPMF~\cite{}"))
+    lines.append(_row(r"Transformer + DAgger~\cite{}"))
+    lines.append(_row(r"MAML (+BPMF)~\cite{}"))
     lines.append(_row(r"BioBO~\cite{}"))
     lines.append(_row(r"Haystacks~\cite{}"))
 
-    # --- Agent, Tuned & Meta-Learning Baselines ---
-    lines.append(_section(r"Agent, Tuned \& Meta-Learning Baselines"))
+    # --- Agent Harnesses ---
+    lines.append(_section(r"Agent Harnesses"))
     lines.append(_row(r"Haiku-4.5 Agent"))
-    lines.append(_row(r"Transformer + DAgger~\cite{}"))
-    lines.append(_row(r"MAML (+BPMF)~\cite{}"))
     lines.append(_row(r"LLMNN~\cite{}"))
     lines.append(_row(r"ICBR-EF~\cite{}"))
 
@@ -1287,7 +1461,7 @@ def main():
 
     lines.append(r"\bottomrule")
     lines.append(r"\end{tabular}")
-    lines.append(r"\end{table*}")
+    lines.append(r"\end{table}")
 
     out_file.parent.mkdir(parents=True, exist_ok=True)
     out_file.write_text("\n".join(lines) + "\n")

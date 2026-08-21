@@ -41,7 +41,7 @@ from matplotlib.colors import LinearSegmentedColormap, TwoSlopeNorm
 from assayloop import config
 from assayloop.scripts.pathway_hierarchy import load as load_hierarchy
 from assayloop.scripts.plot_pathway_sunburst import (
-    _effective_n, _gmt_membership, _weights,
+    _effective_n, _gmt_membership, _rarefied_eff, _weights,
 )
 
 # Runs are looked up locally first, then in the optional shared directory
@@ -131,7 +131,9 @@ def build_cache() -> dict:
         total = sum(by_cat.values())
         out[label] = {
             "share": {c: w / total for c, w in by_cat.items()},
-            "eff_pathways": _effective_n(by_path.values()),
+            # rarefied, matching the sunburst and tab:baselines_results
+            "eff_pathways": _rarefied_eff(genes, membership),
+            "eff_pathways_raw": _effective_n(by_path.values()),
             "n_picks": n_tot, "n_annotated": n_ann,
             "n_unique": len({g.upper() for g in genes}),
         }

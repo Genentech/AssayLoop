@@ -2,10 +2,7 @@
 
 Code for **"Biology-in-the-loop: Amortized Adaptive Hit Discovery in CRISPR Screens."**
 
-[Project site](https://genentech.github.io/assayloop) ·
-[AssayFormer checkpoint](https://huggingface.co/collections/Genentech/assaybench) ·
-[`assaybench` on PyPI](https://pypi.org/project/assaybench/) ·
-[Full reference](README_DETAILED.md)
+[:globe_with_meridians: Project site](https://genentech.github.io/assayloop) | [:hugs: AssayFormer checkpoint](https://huggingface.co/collections/Genentech/assaybench) | [:page_with_curl: Full reference](README_DETAILED.md) | [![PyPI](https://img.shields.io/pypi/v/assaybench)](https://pypi.org/project/assaybench/)
 
 ![The task: a screen is a library of genes, a phenotype and a hit set. Each round, a method
 sees the phenotype and everything it has already assayed, and chooses the next hundred
@@ -29,18 +26,6 @@ uv sync --extra torch     # drop --extra torch for the CPU-only baselines and an
 Python 3.11+. Screens download from Hugging Face on first use. No API key is needed to run
 AssayFormer or to reproduce its numbers; you need one only for the LLM baselines, and only
 for the provider you call (set `ASSAYLOOP_LLM_PROVIDER` and that provider's key in `.env`).
-
-## Downloads
-
-| Command | Size | Needed for |
-|---|---|---|
-| `bash scripts/fetch_sweeps.sh` | 5.5 MB | the published LLM and external-baseline runs behind the paper's table |
-| `bash scripts/fetch_presage_cache.sh` | 3.4 GB | `knn`, `rf`, `biobo`, `llmnn`, Vendi diversity |
-| `bash scripts/fetch_gene_sets.sh` | MSigDB | `bio_ucb`, pathway metrics, the sunburst figure |
-| `bash scripts/fetch_ground_truth.sh` | STRING / CORUM / SIGNOR | network-recovery analysis |
-
-Nothing silently substitutes for a missing download. The code raises and names the fetch
-script.
 
 ## Quickstart
 
@@ -72,10 +57,6 @@ hits = [g for g, h in zip(screen.genes, screen.hits) if h]
 print(enrichment_factor(picked, screen.genes, hits, budget=1000))   # 6.96
 ```
 
-`ckpt_file="model_last.pt"` is not optional. A ranker directory holds two sets of weights,
-and the loader defaults to `model.pt`, which the release does not ship. Every number in the
-paper comes from the final epoch.
-
 Training your own:
 
 ```bash
@@ -99,8 +80,7 @@ uv run assayloop eval-ranker-handoff \
 ```
 
 The first `--n` rounds are replayed from that sweep, then AssayFormer continues with them as
-context. The paper uses `n=2` for GLM-5.1 and AssayLLM, `n=3` for Gemini-3.1-Pro and
-GPT-5.6 Sol.
+context.
 
 ## Screen sets
 
@@ -112,13 +92,20 @@ load_screens(target_set="public_test")         # the full 334-screen test fold
 load_screens(dataset_names=["U_1733_merged"])  # exact screens
 ```
 
+| `--screen-set` | What |
+|---|---|
+| `public` (default) | the curated **20-screen test set** the paper reports |
+| `public_validation` | the curated 20-screen validation set (checkpoint selection) |
+| `public_train` | the full 1,349-screen training fold |
+| `public_val` | the full 218-screen validation fold |
+| `public_test` | the full 334-screen test fold |
+| `lopo-*-{train,test}` | the leave-one-phenotype-out splits |
+| `/path/to.yaml` | your own list |
+
 ```bash
+# Same random baseline as the Quickstart, on the validation set instead of the test set.
 uv run assayloop run --model null --acq random --screen-set public_validation
 ```
-
-`public` and `public_validation` are the curated 20-screen subsets the paper reports on.
-`public_train` / `public_val` / `public_test` are the full temporal folds (1,349 / 218 /
-334). Also shipped: `lopo-*-{train,test}`, the leave-one-phenotype-out splits.
 
 ## Metrics
 
@@ -157,24 +144,46 @@ from assayloop.acquisitions.greedy_from_model import GreedyFromModel
 from assayloop.tasks import load_screens, make_task
 
 class MyRanker(Model):
+    """Score a gene 1.0 if a hit found so far shares its first three letters.
+
+    Gene symbols are loosely paralogous by prefix -- NDUFA1/NDUFA2, RPL3/RPL4 --
+    so this is a crude "more of whatever is working". It is here to show the
+    interface, not because it is a good policy.
+    """
+
     def predict(self, observations, candidates, task_context=None):
-        # observations is what has been assayed so far: o.candidate is the gene,
-        # o.label the outcome. Score whatever has not been assayed yet.
-        families = {o.candidate[:3] for o in observations if o.label}
-        return ModelPrediction(scores={g: float(g[:3] in families) for g in candidates})
+        # observations is what has been assayed so far. o.candidate is the gene
+        # symbol; o.label is {"hit": bool, "relevance_score": float}. candidates
+        # is what is left to score.
+        hit_prefixes = {o.candidate[:3] for o in observations if o.label["hit"]}
+        return ModelPrediction(
+            scores={g: float(g[:3] in hit_prefixes) for g in candidates})
 
 screen = load_screens(target_set="public")[0]
 run = SequentialLoop(make_task(screen), MyRanker(), GreedyFromModel(),
                      metrics=[], batch_size=100).run(n_steps=10)
+
+for step in run.history:            # one record per round
+    found = sum(1 for o in step.new_observations if o.label["hit"])
+    print(f"round {step.step}: assayed {len(step.acquired_batch)}, {found} hits")
 ```
 
-`run.history` is one record per round. To reach your method from the CLI, add a branch to
-`make_model` in `src/assayloop/experiment/runner.py`. The five abstractions (`Task`,
-`Model`, `AcquisitionFunction`, `Metric`, `SequentialLoop`) live in `assaybench`, so
+To reach your method from the CLI, add a branch to `make_model` in
+`src/assayloop/experiment/runner.py`. The five abstractions (`Task`, `Model`,
+`AcquisitionFunction`, `Metric`, `SequentialLoop`) live in `assaybench`, so
 `pip install assaybench` is enough to benchmark a policy without this repo.
 
-A round is never padded. If an acquisition supplies fewer than `batch_size` valid genes, the
-batch is recorded at its true size and the gap counts against it as shortfall.
+## Downloads
+
+| Command | Size | Needed for |
+|---|---|---|
+| `bash scripts/fetch_sweeps.sh` | 5.5 MB | the published LLM and external-baseline runs behind the paper's table |
+| `bash scripts/fetch_presage_cache.sh` | 3.4 GB | `knn`, `rf`, `biobo`, `llmnn`, Vendi diversity |
+| `bash scripts/fetch_gene_sets.sh` | MSigDB | `bio_ucb`, pathway metrics, the sunburst figure |
+| `bash scripts/fetch_ground_truth.sh` | STRING / CORUM / SIGNOR | network-recovery analysis |
+
+Nothing silently substitutes for a missing download. The code raises and names the fetch
+script.
 
 ## Reproducing the paper's table
 

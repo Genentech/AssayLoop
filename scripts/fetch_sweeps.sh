@@ -47,7 +47,7 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TARGET="${ASSAYLOOP_PUBLISHED:-$REPO_ROOT/output/published}"
-BASE="${ASSAYLOOP_BUNDLE_URL:-https://github.com/genentech/assayloop/releases/download/data-v1}"
+BASE="${ASSAYLOOP_BUNDLE_URL:-https://github.com/Genentech/AssayLoop/releases/download/data-v1}"
 
 FORCE=0
 WITH_CALLS=0

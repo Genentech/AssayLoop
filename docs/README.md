@@ -1,7 +1,7 @@
 # AssayLoop Pages site
 
 This folder is the GitHub Pages site at
-<https://genentech.github.io/assayloop>. It is a pure static site — vanilla
+<https://genentech.github.io/AssayLoop>. It is a pure static site — vanilla
 HTML + JavaScript + JSON, with Plotly served from a CDN — so it deploys
 directly from this directory on every push to `main`. There is no build step
 at serve time; the three Python builders below run offline and write JSON and
@@ -205,7 +205,7 @@ cannot drift apart.
 1. Push `docs/` to `main`.
 2. Repo settings → **Pages → Build and deployment → Source: Deploy from a
    branch**, then **Branch: `main`**, **Folder: `/docs`**.
-3. Pages publishes at `https://genentech.github.io/assayloop`.
+3. Pages publishes at `https://genentech.github.io/AssayLoop`.
 
 `.nojekyll` is present, so the files are served as-is.
 

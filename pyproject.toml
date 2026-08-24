@@ -7,7 +7,7 @@ authors = [
     {name = "Edward De Brouwer", email = "debroue1@gene.com"},
     {name = "Carl Edwards", email = "edwardc24@gene.com"},
 ]
-urls = {Homepage = "https://genentech.github.io/assayloop", Repository = "https://github.com/genentech/assayloop"}
+urls = {Homepage = "https://genentech.github.io/AssayLoop", Repository = "https://github.com/Genentech/AssayLoop"}
 requires-python = ">=3.11"
 license = {file = "LICENSE"}
 dependencies = [

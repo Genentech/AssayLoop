@@ -56,7 +56,7 @@ DOCS = Path(__file__).resolve().parent
 FIG_OUT = DOCS / "assets" / "figures"
 DATA_OUT = DOCS / "assets" / "data"
 ANALYSIS = config.OUTPUT_PATH / "analysis"
-REPO_URL = "https://github.com/genentech/assayloop"
+REPO_URL = "https://github.com/Genentech/AssayLoop"
 SRC_PREFIX = "src/assayloop/scripts"
 
 #: An SVG bigger than this is shipped as PNG instead. The sunburst and the

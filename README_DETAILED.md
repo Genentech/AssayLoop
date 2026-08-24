@@ -27,7 +27,7 @@ paper, AssayFormer training/RL, and the table and figure scripts. The screen cor
 shared metrics live in the companion [`assaybench`](https://pypi.org/project/assaybench/)
 package.
 
-**[genentech.github.io/assayloop](https://genentech.github.io/assayloop)** — the project
+**[genentech.github.io/AssayLoop](https://genentech.github.io/AssayLoop)** — the project
 site: the results table, an explorer for the recovery curves and the gene embedding, and a
 gallery giving the exact command that regenerates every figure in the paper. It is built
 from [`docs/`](docs/) by re-running the scripts in this repo, so it doubles as a
@@ -58,7 +58,7 @@ reproducibility check on them.
 Python 3.11+. The project uses [uv](https://github.com/astral-sh/uv).
 
 ```bash
-git clone https://github.com/genentech/assayloop
+git clone https://github.com/Genentech/AssayLoop
 cd assayloop
 uv sync                    # CPU only: the loop, the LLM baselines, the analysis scripts
 uv sync --extra torch      # + AssayFormer (train-ranker / eval-ranker) and the Bayesian MLP

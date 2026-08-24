@@ -64,7 +64,7 @@
       <footer class="site-footer">
         <div class="site-footer-inner">
           <div>AssayLoop &nbsp;&middot;&nbsp; Genentech, 2026
-            &nbsp;&middot;&nbsp; <a href="https://github.com/genentech/assayloop">GitHub</a>
+            &nbsp;&middot;&nbsp; <a href="https://github.com/Genentech/AssayLoop">GitHub</a>
             &nbsp;&middot;&nbsp; <a href="https://pypi.org/project/assaybench/">PyPI</a>
             &nbsp;&middot;&nbsp; <a href="https://genentech.github.io/AssayBench">AssayBench</a>
           </div>

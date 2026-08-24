@@ -2,7 +2,9 @@
 
 Code for **"Biology-in-the-loop: Amortized Adaptive Hit Discovery in CRISPR Screens."**
 
-[:globe_with_meridians: Project site](https://genentech.github.io/assayloop) | [:hugs: AssayFormer checkpoint](https://huggingface.co/collections/Genentech/assaybench) | [:page_with_curl: Full reference](README_DETAILED.md) | [![PyPI](https://img.shields.io/pypi/v/assaybench)](https://pypi.org/project/assaybench/)
+[:globe_with_meridians: Website](https://genentech.github.io/AssayLoop) | [:hugs: Checkpoints](https://huggingface.co/collections/Genentech/assaybench) | [:page_with_curl: Paper](README_DETAILED.md) | [![PyPI](https://img.shields.io/pypi/v/assaybench)](https://pypi.org/project/assaybench/)
+<!-- TODO: the Paper badge points at README_DETAILED.md until the arXiv ID exists.
+     Repoint it at the arXiv abstract then, alongside the Citation BibTeX below. -->
 
 ![The task: a screen is a library of genes, a phenotype and a hit set. Each round, a method
 sees the phenotype and everything it has already assayed, and chooses the next hundred
@@ -18,7 +20,7 @@ library**, ahead of every baseline we evaluated.
 ## Install
 
 ```bash
-git clone https://github.com/genentech/assayloop
+git clone https://github.com/Genentech/AssayLoop
 cd assayloop
 uv sync --extra torch     # drop --extra torch for the CPU-only baselines and analysis
 ```

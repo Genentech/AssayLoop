@@ -24,6 +24,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
+from assayloop.scripts._figure_io import save_figure
 from assayloop import config
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -267,13 +268,8 @@ def main():
 
         ax.set_title(title, fontsize=12.5, fontweight="bold", pad=10)
 
-    fname = out_dir / "paper_influence_figure.pdf"
-    fig.savefig(fname, dpi=300, bbox_inches="tight")
-    log.info("Wrote %s", fname)
-
-    fname_png = out_dir / "paper_influence_figure.png"
-    fig.savefig(fname_png, dpi=150, bbox_inches="tight")
-    log.info("Wrote %s", fname_png)
+    save_figure(fig, out_dir / "paper_influence_figure.png",
+                dpi=150, vector_dpi=300, bbox_inches="tight")
     plt.close(fig)
 
     # Also save the computed values

@@ -85,7 +85,20 @@ VLLM_REPETITION_PENALTY: float | None = _opt_float("VLLM_REPETITION_PENALTY")
 # ---------------------------------------------------------------------------
 
 SCRATCH_PATH: Path = _PROJECT_ROOT / os.getenv("SCRATCH_PATH", "scratch")
-OUTPUT_PATH: Path = _PROJECT_ROOT / "output"
+
+# Everything this repo *writes*: runs, sweeps, and the ``analysis/`` directory
+# the paper's figure scripts both read their aggregation caches from and write
+# their figures to. Defaults to this checkout's own ``output/``.
+#
+# Override it when the artifacts live somewhere other than the checkout -- a
+# downloaded results bundle, a scratch filesystem, a shared tree. RESULTS_PATH
+# follows it unless separately set, so pointing this one variable at a bundle
+# points the read side at it too. This is the only path variable that was not
+# configurable; the figure scripts are unusable against a downloaded bundle
+# without it.
+OUTPUT_PATH: Path = Path(
+    os.getenv("ASSAYLOOP_OUTPUT", str(_PROJECT_ROOT / "output"))
+)
 
 # Shared (cross-user) results directory. Sweeps "pushed" here become visible
 # to every teammate pointing at the same path, so a team can share baseline

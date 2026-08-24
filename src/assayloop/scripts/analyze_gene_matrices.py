@@ -22,6 +22,7 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import average_precision_score, roc_auc_score
 
+from assayloop.scripts._figure_io import save_figure
 from assayloop import config
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -384,9 +385,7 @@ def main():
                  fontsize=12, fontweight="bold")
     fig.tight_layout()
     fname = out_dir / "gene_matrix_auroc_comparison.png"
-    fig.savefig(fname, dpi=150, bbox_inches="tight")
-    fig.savefig(out_dir / "gene_matrix_auroc_comparison.pdf", dpi=300, bbox_inches="tight")
-    log.info("Wrote %s", fname)
+    save_figure(fig, fname, dpi=150, vector_dpi=300, bbox_inches="tight")
     plt.close(fig)
 
     # === Figure 2: Training trajectory for BPMF (the main model) ===
@@ -412,10 +411,7 @@ def main():
                       fontsize=11, fontweight="bold")
         fig2.tight_layout()
         fname2 = out_dir / "gene_matrix_bpmf_trajectory.png"
-        fig2.savefig(fname2, dpi=150, bbox_inches="tight")
-        fig2.savefig(out_dir / "gene_matrix_bpmf_trajectory.pdf", dpi=300,
-                     bbox_inches="tight")
-        log.info("Wrote %s", fname2)
+        save_figure(fig2, fname2, dpi=150, vector_dpi=300, bbox_inches="tight")
         plt.close(fig2)
 
     # === Figure 3: Focused network for featured genes ===
@@ -457,10 +453,7 @@ def main():
 
         fig3.tight_layout()
         fname3 = out_dir / "gene_matrix_featured_heatmap.png"
-        fig3.savefig(fname3, dpi=150, bbox_inches="tight")
-        fig3.savefig(out_dir / "gene_matrix_featured_heatmap.pdf", dpi=300,
-                     bbox_inches="tight")
-        log.info("Wrote %s", fname3)
+        save_figure(fig3, fname3, dpi=150, vector_dpi=300, bbox_inches="tight")
         plt.close(fig3)
 
 

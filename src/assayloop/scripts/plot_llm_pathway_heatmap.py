@@ -38,6 +38,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import LinearSegmentedColormap, TwoSlopeNorm
 
+from assayloop.scripts._figure_io import save_figure
 from assayloop import config
 from assayloop.scripts.pathway_hierarchy import load as load_hierarchy
 from assayloop.scripts.plot_pathway_sunburst import (
@@ -116,7 +117,11 @@ def _run_genes(prefix: str) -> list[str]:
 def build_cache() -> dict:
     hier = load_hierarchy()
     cat_of, sub_of = hier["category_of"], hier["subcategory_of"]
-    membership = _gmt_membership()
+    membership = _gmt_membership()          # leaf sets -- the category shares
+    # Level-2 vocabulary for the EP number, so it matches the sunburst and
+    # tab:baselines_results. See plot_pathway_sunburst for why the two differ.
+    from assayloop.metrics.effective_pathways import gmt_membership
+    ep_membership = gmt_membership()
 
     out = {}
     for label, prefix, _grp in METHODS:
@@ -132,7 +137,7 @@ def build_cache() -> dict:
         out[label] = {
             "share": {c: w / total for c, w in by_cat.items()},
             # rarefied, matching the sunburst and tab:baselines_results
-            "eff_pathways": _rarefied_eff(genes, membership),
+            "eff_pathways": _rarefied_eff(genes, ep_membership),
             "eff_pathways_raw": _effective_n(by_path.values()),
             "n_picks": n_tot, "n_annotated": n_ann,
             "n_unique": len({g.upper() for g in genes}),
@@ -223,7 +228,7 @@ def draw(data: dict) -> None:
     axs.set_ylim(3, 0)
     axs.axis("off")
     strip = [
-        ("Effective pathways", lambda d: f"{d['eff_pathways']:.0f}"),
+        ("Effective pathways", lambda d: f"{d['eff_pathways']:.1f}"),
         ("Unique genes", lambda d: f"{d['n_unique']:,}"),
         ("Annotated picks", lambda d: f"{d['n_annotated'] / max(d['n_picks'], 1):.0%}"),
     ]
@@ -251,9 +256,7 @@ def draw(data: dict) -> None:
              "(capped; cell values are the raw %)", fontsize=6.6, color=MUTED,
              ha="left", va="center")
 
-    fig.savefig(OUT, facecolor=SURFACE, bbox_inches="tight")
-    fig.savefig(str(OUT).replace(".png", ".pdf"), facecolor=SURFACE,
-                bbox_inches="tight")
+    save_figure(fig, OUT, vector_dpi=300, facecolor=SURFACE, bbox_inches="tight")
     print("wrote", OUT)
 
 

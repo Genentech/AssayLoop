@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Citation — AssayLoop</title>
+<meta name="description" content="How to cite AssayLoop, AssayBench, and the data sources behind them."/>
+<link rel="stylesheet" href="assets/css/site.css?v=b5266bb0"/>
+</head>
+<body>
+<div id="site-header"></div>
+
+<main>
+  <div class="container">
+    <h1>Citation</h1>
+    <p class="lede">
+      If AssayLoop is useful to you, please cite the paper. If you use the benchmark data or the
+      evaluation metrics, please also cite AssayBench, which supplies both.
+    </p>
+
+    <h2>AssayLoop</h2>
+    <div class="callout note">
+      <strong>Placeholder.</strong> The arXiv identifier is not assigned yet. This entry will be
+      replaced with the citable reference — the same placeholder is marked in the repository's
+      <a href="https://github.com/genentech/assayloop#citation">README</a> so the two are filled
+      together.
+    </div>
+    <div class="bibtex">@article{assayloop2026,
+  title   = {Biology-in-the-loop: Amortized Adaptive Hit Discovery in CRISPR Screens},
+  author  = {Edwards, Carl and De Brouwer, Edward and Li, Xiner and
+             Lee, Namkyeong and Hajiramezanali, Ehsan and Biton, Anne and
+             Mostafavi, Sara and Scalia, Gabriele},
+  journal = {arXiv preprint arXiv:TODO},
+  year    = {2026}
+}</div>
+    <p style="font-family: var(--sans); font-size: 13.5px; margin-top: 10px;">
+      <button class="copy-btn" data-copy="@article{assayloop2026,
+  title   = {Biology-in-the-loop: Amortized Adaptive Hit Discovery in CRISPR Screens},
+  author  = {Edwards, Carl and De Brouwer, Edward and Li, Xiner and
+             Lee, Namkyeong and Hajiramezanali, Ehsan and Biton, Anne and
+             Mostafavi, Sara and Scalia, Gabriele},
+  journal = {arXiv preprint arXiv:TODO},
+  year    = {2026}
+}">copy BibTeX</button>
+    </p>
+
+    <h2>AssayBench</h2>
+    <p>
+      The screen corpus, the dataset splits, and the ranking metrics come from AssayBench.
+    </p>
+    <div class="bibtex">@article{de2026assaybench,
+  title   = {AssayBench: An Assay-Level Virtual Cell Benchmark for LLMs and Agents},
+  author  = {De Brouwer, Edward and Edwards, Carl and Wu, Alexander and
+             Collier, Jenna and Heimberg, Graham and Li, Xiner and
+             Subramaniam, Meena and Hajiramezanali, Ehsan and
+             Richmond, David and H{\"u}tter, Jan-Christian and
+             Mostafavi, Sara and Scalia, Gabriele},
+  journal = {arXiv preprint arXiv:2605.10876},
+  year    = {2026}
+}</div>
+    <p style="font-family: var(--sans); font-size: 13.5px; margin-top: 10px;">
+      <button class="copy-btn" data-copy="@article{de2026assaybench,
+  title   = {AssayBench: An Assay-Level Virtual Cell Benchmark for LLMs and Agents},
+  author  = {De Brouwer, Edward and Edwards, Carl and Wu, Alexander and
+             Collier, Jenna and Heimberg, Graham and Li, Xiner and
+             Subramaniam, Meena and Hajiramezanali, Ehsan and
+             Richmond, David and H{&quot;u}tter, Jan-Christian and
+             Mostafavi, Sara and Scalia, Gabriele},
+  journal = {arXiv preprint arXiv:2605.10876},
+  year    = {2026}
+}">copy BibTeX</button>
+    </p>
+
+    <h2>Underlying data</h2>
+    <p>
+      AssayLoop is built on public resources that carry their own attribution requirements. The
+      repository's <a href="https://github.com/genentech/assayloop#data-sources-and-licensing">data
+      sources table</a> is the authoritative list; the short version:
+    </p>
+    <ul class="bullets">
+      <li><strong>BioGRID ORCS</strong> — the screens themselves, via the
+        <a href="https://huggingface.co/datasets/Genentech/assaybench">Genentech/assaybench</a>
+        dataset.</li>
+      <li><strong>Reactome</strong> — the pathway hierarchy behind the Effective Pathways metric
+        and the sunbursts. CC BY 4.0.</li>
+      <li><strong>MSigDB</strong> (Hallmark, C5 GO:BP, C2 CP) — enrichment priors and pathway
+        diversity. Attribution: Broad Institute, MIT, and the Regents of the University of
+        California.</li>
+      <li><strong>STRING v11.5, CORUM 4.1, SIGNOR 3.0</strong> — interaction ground truth for the
+        network-recovery analysis. CC BY 4.0 at these pinned versions.</li>
+      <li><strong>DepMap</strong> — common-essential gene list, used for the %essential column.
+        CC BY 4.0, Broad Institute.</li>
+      <li><strong>PRESAGE</strong> — gene embeddings used by several baselines. Fetched by the
+        download script; nothing is redistributed here.</li>
+    </ul>
+
+    <h2>Checkpoints and released artifacts</h2>
+    <p>
+      Trained AssayFormer and BPMF checkpoints, the published sweep bundle, and the recorded LLM
+      calls are linked from the repository README. They are downloaded on request — the code never
+      substitutes a different artifact when one is missing.
+    </p>
+  </div>
+</main>
+
+<div id="site-footer"></div>
+<script src="assets/js/site.js?v=b1729676" data-build="8787e112"></script>
+<script>
+  document.addEventListener("DOMContentLoaded", () => window.AssayLoop.initCopyButtons());
+</script>
+</body>
+</html>

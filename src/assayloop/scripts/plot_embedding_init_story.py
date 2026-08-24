@@ -22,6 +22,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 from matplotlib.patches import FancyArrowPatch
+from assayloop.scripts._figure_io import save_figure
 from assayloop import config
 
 ANALYSIS = config.OUTPUT_PATH / "analysis"
@@ -120,6 +121,5 @@ for t in leg.get_texts(): t.set_color(INK2)
 
 ax.set_xlim(0.47, 0.82); ax.set_ylim(0.7, 5.15)
 fig.tight_layout()
-fig.savefig(OUT, facecolor=SURFACE, bbox_inches="tight")
-fig.savefig(str(OUT).replace(".png", ".pdf"), facecolor=SURFACE, bbox_inches="tight")
+save_figure(fig, OUT, facecolor=SURFACE, bbox_inches="tight")
 print("wrote", OUT)

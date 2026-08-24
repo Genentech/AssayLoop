@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>AssayLoop: Amortized Adaptive Hit Discovery in CRISPR Screens</title>
+<meta name="description" content="AssayLoop is a sequential experimental design framework for adaptive hit discovery in CRISPR screens. It recovers 27.7% of hits after assaying only 5% of the candidate library."/>
+<link rel="stylesheet" href="assets/css/site.css?v=b5266bb0"/>
+<script src="https://cdn.plot.ly/plotly-2.32.0.min.js" charset="utf-8"></script>
+</head>
+<body>
+<div id="site-header"></div>
+
+<main>
+  <div class="container">
+    <p class="kicker">Sequential Experimental Design · CRISPR Screens · Genentech · 2026</p>
+    <h1 class="paper-title">Biology-in-the-loop: Amortized Adaptive Hit Discovery in CRISPR Screens</h1>
+    <p class="paper-authors">
+      <span class="equal">Carl Edwards</span>,
+      <span class="equal">Edward De Brouwer</span>,
+      <span class="equal">Xiner Li</span>,
+      Namkyeong Lee, Ehsan Hajiramezanali, Anne Biton, Sara Mostafavi, Gabriele Scalia
+    </p>
+    <p class="paper-affil">
+      Genentech, South San Francisco, CA, USA &nbsp;·&nbsp;
+      <span class="equal">★ equal contribution</span>
+    </p>
+    <div class="badges">
+      <a class="badge" href="https://arxiv.org/abs/TODO"><span>📄</span> arXiv</a>
+      <a class="badge alt" href="https://github.com/genentech/assayloop"><span>💻</span> Code</a>
+      <a class="badge alt-2" href="https://pypi.org/project/assaybench/"><span>🐍</span> assaybench on PyPI</a>
+      <!-- The collection, not the org page: it is the one URL that holds the
+           screens, the checkpoint and anything added later, so it stays right
+           as more artifacts land. -->
+      <a class="badge alt-4" href="https://huggingface.co/collections/Genentech/assaybench"><span>🤗</span> Models &amp; data</a>
+      <a class="badge alt-3" href="cite.html"><span>📚</span> Citation</a>
+    </div>
+
+    <!-- The problem in one paragraph, then the result. The chart makes no sense
+         to a reader who does not yet know that the x axis is a budget being
+         spent, so the setup goes first and the plot answers it. -->
+    <p class="lede">
+      You can only afford to test a few hundred genes at a time, and you have to choose the next
+      batch before you know how the last one turned out. LLMs know a lot of biology but are
+      unreliable at learning from the feedback; classical sequential design learns from feedback
+      but starts from nothing. AssayLoop hands the screen from one to the other: an LLM picks the
+      first rounds, then a policy trained across a thousand historical screens takes over.
+    </p>
+
+    <!-- Drawn by assets/js/hero.js from the same recovery_mean.json the explorer
+         reads, with no controls on purpose: its job here is to be read, not
+         driven. Everything it leaves out -- the other fifty-one methods, the
+         per-screen curves, the out-of-library axis -- is one click below in
+         recovery.html. -->
+    <div class="plot" id="hero-plot" style="min-height: 416px;"></div>
+    <p class="figure-caption">
+      <span class="label">Hits recovered against genes assayed,</span> averaged over the
+      <span data-stat="n_test_screens">20</span> held-out screens. Ten rounds of a hundred
+      genes, every method picking from the same full-genome candidate pool. The dashed
+      line is chance: what picking genes at random recovers.
+      <a href="recovery.html">All 58 methods, screen by screen &rarr;</a>
+    </p>
+    <p id="hero-status" class="chart-status" hidden></p>
+
+    <div class="callout">
+      <strong>TL;DR.</strong> We train <strong>AssayFormer</strong>, a transformer that learns an
+      amortized acquisition policy from historical CRISPR screens and adapts in-context to feedback
+      from the screen in front of it. <strong>AssayLoop</strong> warm-starts it with an LLM and hands
+      off once assay-specific evidence accumulates. On held-out screens it recovers
+      <strong><span data-stat="best_frac_hits">27.7%</span> of hits after assaying only 5% of the
+      candidate library</strong>: a <span data-stat="best_ef">5.66×</span> enrichment over random,
+      ahead of every sequential design baseline we evaluated.
+    </div>
+
+    <!-- Filled from assets/data/summary.json by index.js. The values in the
+         markup are the paper's, so the page is correct with JavaScript off;
+         if the fetch fails, index.js says out loud that they were not read
+         back from the table rather than leaving them looking freshly derived. -->
+    <p id="summary-note" class="chart-status" hidden></p>
+
+    <!-- The teaser, rasterised from the paper's vector PDF by
+         docs/build_paper_panels.py. A PNG rather than the PDF itself: an
+         <object> embed puts a PDF viewer with its own scrollbar in the middle
+         of the page, which is a bad way to look at a figure. -->
+    <figure class="hero-figure">
+      <img src="assets/figures/figure1.png"
+           alt="A screen is a library of genes, a phenotype and a hit set; a method picks 100 genes per round for ten rounds."/>
+      <figcaption>
+        <strong>The task.</strong> A screen is a library of genes, a phenotype, and a hit set. Each
+        round, a method sees the phenotype and everything it has already assayed with its outcome,
+        and must choose the next hundred genes. Ten rounds, then the score.
+      </figcaption>
+    </figure>
+
+    <h2>Abstract</h2>
+    <p>
+      Many biological discovery problems require experiments to be selected sequentially under
+      constrained budgets. CRISPR screening is a prominent example, as exhaustive perturbation
+      testing is often infeasible and candidate perturbations must instead be prioritized over
+      multiple experimental rounds. Existing approaches face complementary limitations. Large
+      language models provide broad biological prior knowledge but often struggle to learn
+      in-context from feedback collected over successive experimental rounds. Classical sequential
+      design methods adapt to observed outcomes but lack extensive biological prior knowledge. We
+      introduce AssayBench-Loop, a sequential experimental design framework for adaptive hit
+      discovery in CRISPR screens. We train a model, AssayFormer, which learns an amortized
+      acquisition policy from historical screens, allowing screening strategies to transfer across
+      assays while adapting to feedback from the current experiment. It further incorporates
+      language-model-derived biological priors through an adaptive handoff strategy, AssayLoop,
+      using LLM guidance for early-round prioritization before transitioning to the learned policy
+      AssayFormer. In retrospective evaluations on held-out screens, AssayLoop recovers 27.7% of
+      hits after assaying only 5% of the candidate library and outperforms all evaluated sequential
+      design baselines. These results demonstrate that combining transferable biological priors with
+      feedback-adaptive policies can substantially improve hit discovery under constrained
+      experimental budgets.
+    </p>
+
+    <h2>Headline findings</h2>
+    <ul class="bullets">
+      <li><strong>Amortization transfers.</strong> A policy trained across historical screens beats
+        every per-assay surrogate we tested, and the gap is largest in the early rounds where
+        assay-specific feedback is scarce.
+        <a href="recovery.html">See the recovery curves →</a></li>
+      <li><strong>Warm start and in-context adaptation are separable.</strong> The strongest
+        warm-start model (Gemini-3.1-pro) and the strongest in-context learner (AssayFormer) are not
+        the same model. Handing off between them beats either alone — 5.66&times; EF versus
+        4.69&times; and 4.83&times;. <a href="results.html">See the table →</a></li>
+      <li><strong>LLMs do not reliably use hit feedback.</strong> Removing the hit labels from the
+        prompt barely changes what a frontier LLM picks, which is exactly the failure the handoff
+        is designed around. <a href="results.html#label-ablation">See the label ablation →</a></li>
+      <li><strong>Different methods go after different biology.</strong> Effective pathway coverage
+        reverses with scope: the LLMs pick tightly themed batches — EP-B 12&ndash;15 against
+        18&ndash;20 for the learned policies, out of a 186-group Reactome vocabulary — but shift
+        theme from screen to screen, so across the whole test set they touch as much biology as the
+        policies do. <a href="diversity.html">See the diversity explorer →</a></li>
+      <li><strong>A 27B open model can be trained into the loop.</strong> AssayLLM (Qwen3.6-27B +
+        SFT + GRPO) reaches 3.70&times; EF alone and 5.05&times; when handed off to AssayFormer.</li>
+    </ul>
+
+    <h2>By the numbers</h2>
+    <div class="stat-grid">
+      <div class="stat-card"><div class="stat-value" data-stat="best_ef">5.66&times;</div><div class="stat-label">Best enrichment factor</div></div>
+      <div class="stat-card"><div class="stat-value" data-stat="best_frac_hits">27.7%</div><div class="stat-label">Hits found at 5% of library</div></div>
+      <!-- Rows in the paper's results table. index.js replaces this with the
+           number that actually carried a result on the build, which is lower
+           whenever build_data.py ran with --allow-unavailable. -->
+      <div class="stat-card"><div class="stat-value" data-stat="n_methods">56</div><div class="stat-label">Methods compared</div></div>
+      <!-- No data-stat: the training-set size is a property of the training
+           corpus, and summary.json is built from the *evaluation* table. -->
+      <div class="stat-card"><div class="stat-value">1,349</div><div class="stat-label">Training screens</div></div>
+      <div class="stat-card"><div class="stat-value" data-stat="n_test_screens">20</div><div class="stat-label">Held-out test screens</div></div>
+      <div class="stat-card"><div class="stat-value" data-stat="rounds_by_batch">10 &times; 100</div><div class="stat-label">Rounds &times; genes per round</div></div>
+    </div>
+
+    <hr class="section-divider"/>
+
+    <h2>Explore</h2>
+    <div class="feature-grid">
+      <a class="feature-card" href="results.html">
+        <div class="feature-kicker">Table</div>
+        <h3>Full results</h3>
+        <p>Every method in the paper's main table — enrichment factor, nAUC, shortfall, essentiality,
+          and effective pathway coverage — sortable and filterable by family.</p>
+        <div class="feature-cta">Open the table →</div>
+      </a>
+      <a class="feature-card" href="recovery.html">
+        <div class="feature-kicker">Interactive</div>
+        <h3>Recovery curves</h3>
+        <p>Watch hits accumulate round by round for any subset of the 58 methods, averaged over the
+          20 test screens or broken out screen by screen.</p>
+        <div class="feature-cta">Open the explorer →</div>
+      </a>
+      <a class="feature-card" href="diversity.html">
+        <div class="feature-kicker">Interactive</div>
+        <h3>Pathway diversity</h3>
+        <p>What biology does each method actually go after? Effective Pathways at batch, screen, and
+          dataset scope, with the Reactome sunbursts.</p>
+        <div class="feature-cta">Open the explorer →</div>
+      </a>
+      <a class="feature-card" href="umap.html">
+        <div class="feature-kicker">Interactive</div>
+        <h3>Gene embeddings</h3>
+        <p>The BPMF gene embedding that initializes AssayFormer, projected and searchable by gene,
+          cluster, hit rate, and essentiality.</p>
+        <div class="feature-cta">Open the explorer →</div>
+      </a>
+      <a class="feature-card" href="method.html">
+        <div class="feature-kicker">Method</div>
+        <h3>How the loop is built</h3>
+        <p>The pipeline panel by panel — the benchmark, the BPMF initialisation, supervised
+          training, the context-delta RL reward, and the handoff — plus what the enrichment factor
+          actually measures.</p>
+        <div class="feature-cta">Read the method →</div>
+      </a>
+      <a class="feature-card" href="analysis.html">
+        <div class="feature-kicker">Qualitative</div>
+        <h3>What the models learned</h3>
+        <p>Round-by-round composition of a handoff, the pathways each LLM over-picks, and what
+          observing one gene as a hit does to AssayFormer's predictions for the others.</p>
+        <div class="feature-cta">Open the analysis →</div>
+      </a>
+      <a class="feature-card" href="https://github.com/genentech/assayloop">
+        <div class="feature-kicker">Code</div>
+        <h3>Run it yourself</h3>
+        <p>The full framework, the evaluation loop, the shipped screen-description embeddings, and a
+          download script for the published sweeps.</p>
+        <div class="feature-cta">Open the repository →</div>
+      </a>
+    </div>
+
+    <h2>Getting started</h2>
+    <p>
+      Two entry points, and the smaller one is probably the one you want. Benchmarking a policy of
+      your own needs the <a href="https://pypi.org/project/assaybench/">assaybench</a> package and
+      nothing else &mdash; the screens, the paper's test set and the metrics are all in it. Cloning
+      this repository is for reproducing <em>our</em> methods.
+    </p>
+
+    <h3>Score your own policy</h3>
+    <pre>pip install assaybench</pre>
+    <p>
+      That gives you the 20 test screens the paper reports on, by name, and the metric functions
+      that produced its numbers. Everything between is yours.
+    </p>
+    <pre>from assaybench import AssayBenchDataset, adjusted_nauc, enrichment_factor, load_manifest
+
+# The paper's test set: 20 genome-wide screens, curated and shipped with the package.
+wanted = {s["dataset_name"] for s in load_manifest("assayloop-test").screens}
+_, _, test = AssayBenchDataset(dataset_name="biogrid", split_type="year", fold=0) \
+    .get_train_test_split()
+screen = next(s for s in test if s["dataset_name"] in wanted)
+
+library = screen["relevance_genes"]
+hits = [g for g, is_hit in zip(library, screen["hit"]) if is_hit]
+
+# Your policy. Ten rounds of 100 genes; the labels for a round are revealed
+# before the next one is proposed.
+rounds = my_policy(screen, n_rounds=10, batch_size=100)
+acquired = [gene for batch in rounds for gene in batch]
+
+print(enrichment_factor(acquired, library, hits, budget=1000))   # EF, the headline number
+print(adjusted_nauc(rounds, library, hits))                      # did it get there early?</pre>
+
+    <h3>Reproduce the paper</h3>
+    <p>
+      The AssayFormer architecture, the GRPO training loop, the LLM harness and the handoff live
+      here rather than on PyPI, because they know where this repository keeps its files.
+    </p>
+    <pre>git clone https://github.com/genentech/assayloop
+cd assayloop
+pip install -e .
+
+# Re-run a method on the same 20 screens.
+assayloop run --screen-set public --model assayformer</pre>
+    <p style="font-family: var(--sans); font-size: 14px; color: var(--ink-2);">
+      Either way the screen data comes from
+      <a href="https://huggingface.co/datasets/Genentech/assaybench">Genentech/assaybench</a> on the
+      Hugging Face Hub. Nothing falls back silently: if an asset is missing, the run stops and names
+      what to download.
+    </p>
+  </div>
+</main>
+
+<div id="site-footer"></div>
+<script src="assets/js/site.js?v=b1729676" data-build="8787e112"></script>
+<script src="assets/js/index.js?v=a85cb0ba"></script>
+<script src="assets/js/hero.js?v=746da6e8"></script>
+</body>
+</html>

@@ -74,10 +74,8 @@ def main():
     args = ap.parse_args()
 
     from assayloop.tasks import load_screens
+    # load_full_bpmf raises with the glob it searched when the fit is absent.
     V, genes = load_full_bpmf(args.k)
-    if V is None:
-        log.error("Full-data BPMF K=%d not found", args.k)
-        return
     gi = {g: i for i, g in enumerate(genes)}
     train = load_screens(target_set="public_train")
     pub = load_screens(target_set="public")

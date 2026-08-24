@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Results — AssayLoop</title>
+<meta name="description" content="The full AssayLoop results table: enrichment factor, nAUC, fraction of hits, shortfall, essentiality, and effective pathway coverage for every method in the paper."/>
+<link rel="stylesheet" href="assets/css/site.css?v=b5266bb0"/>
+<script src="https://cdn.plot.ly/plotly-2.32.0.min.js" charset="utf-8"></script>
+</head>
+<body>
+<div id="site-header"></div>
+
+<main>
+  <div class="container-wide">
+    <p class="kicker">Main results</p>
+    <h1>How the methods compare</h1>
+    <p class="lede">
+      All <span id="n-methods">&mdash;</span> methods from the paper's results table, on the same
+      <span id="n-screens">&mdash;</span> held-out screens and the same full-genome candidate pool.
+      Sort any column, filter by family, or search for a method.
+    </p>
+
+    <!-- Shown only when build_data.py was run with --allow-unavailable, i.e.
+         when some method in the table has no result on this build. Rows are
+         also individually marked; this says how many and why, so the gap is
+         legible before the reader starts scanning dashes. -->
+    <div class="callout danger" id="unavailable-note" hidden></div>
+
+    <div class="controls" id="controls">
+      <div class="control">
+        <label for="search">Search</label>
+        <input type="search" id="search" placeholder="e.g. Gemini, GRPO, BPMF"/>
+      </div>
+      <div class="control">
+        <label for="family">Family</label>
+        <select id="family"><option value="">All families</option></select>
+      </div>
+      <div class="control">
+        <label for="ablations">Ablations</label>
+        <select id="ablations">
+          <option value="hide">Hide ablation rows</option>
+          <option value="show">Show ablation rows</option>
+        </select>
+      </div>
+      <div class="control">
+        <label>&nbsp;</label>
+        <button class="button secondary" id="reset">Reset</button>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table class="leaderboard" id="table">
+        <thead><tr id="head"></tr></thead>
+        <tbody id="body"></tbody>
+      </table>
+    </div>
+    <p id="status" class="chart-status"></p>
+
+    <h2>Reading the columns</h2>
+    <ul class="bullets" id="notes"></ul>
+
+    <hr class="section-divider"/>
+
+    <h2 id="lopo">Does it generalise to phenotypes it never saw?</h2>
+    <p>
+      The main table trains and tests on a chronological split, so every broad phenotype family is
+      represented on both sides of it. A harder question is whether the policy has learned
+      something about acquisition or merely about the phenotypes in its training set. Leave one of
+      AssayBench's five broad phenotypes out of training entirely, then evaluate on it. Supervised
+      training already beats a gene-level kNN baseline, and RL improves on that again.
+    </p>
+    <div class="plot" id="lopo-chart"></div>
+    <p class="figure-caption" id="lopo-caption"></p>
+
+    <h2 id="scaling">Scaling</h2>
+    <p>
+      What buys performance here is screens, not parameters. Training AssayFormer on 1 through all
+      1,349 training screens improves both the supervised and the RL policy throughout, with RL
+      above SFT at every scale. The gain concentrates in the first few acquisition rounds &mdash;
+      by ten thousand genes sampled, even a random policy has found most of the hits, so there is
+      nothing left to be better at.
+    </p>
+    <div data-figures="scaling"></div>
+
+    <h2 id="label-ablation">Who actually uses the feedback?</h2>
+    <p>
+      Run the same ten-round loop twice: once with the previous rounds' hit labels in the prompt,
+      and once with them stripped. The gap is a direct measurement of how much of a method's
+      performance comes from adapting to the experiment rather than from its prior. Every LLM
+      family gains from the feedback and so do AssayFormer and AssayLoop &mdash; but the LLMs'
+      gains are small enough that the handoff is worth making.
+    </p>
+    <div class="plot" id="ablation-chart"></div>
+    <p class="figure-caption" id="ablation-caption"></p>
+
+    <p class="footnote" id="dash">
+      A dash in an EP column is a refusal to score, not a zero: a method whose picks are mostly
+      unannotated cannot supply enough genes to calculate the metric.
+      <a href="diversity.html">More on what those columns measure &rarr;</a>
+    </p>
+  </div>
+</main>
+
+<div id="site-footer"></div>
+<script src="assets/js/site.js?v=b1729676" data-build="8787e112"></script>
+<script src="assets/js/figure-strip.js?v=6937cd20"></script>
+<script src="assets/js/results.js?v=69ab5d6c"></script>
+<script src="assets/js/lopo.js?v=b4e0141e"></script>
+</body>
+</html>

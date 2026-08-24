@@ -30,6 +30,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 
+from assayloop.scripts._figure_io import save_figure
 from assayloop import config  # noqa: E402
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -45,10 +46,8 @@ RL_STYLE = dict(marker="s", ms=5, lw=1.8, ls="--", color="#d62728", label="+ GRP
 
 def _save(fig, fpath):
     """Save a figure as both PNG (preview) and PDF (paper), then close it."""
-    fig.savefig(fpath, dpi=150, bbox_inches="tight")
-    fig.savefig(str(fpath).replace(".png", ".pdf"), bbox_inches="tight")
+    save_figure(fig, fpath, dpi=150, bbox_inches="tight")
     plt.close(fig)
-    log.info("Wrote %s (+pdf)", fpath)
 
 
 def _phase_handles():

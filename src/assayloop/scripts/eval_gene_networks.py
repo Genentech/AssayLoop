@@ -50,8 +50,15 @@ def _load_gene_factors(ckpt_name: str, ckpt_file: str = "model.pt"):
     vocab = GeneVocab.load(ckpt_dir / "vocab.json")
 
     if "arch" in cfg:
+        # gene_embeddings.npy is a cached copy of gene_emb.weight, but training
+        # writes it *after* reloading the best-on-val state, so it belongs to
+        # model.pt and to nothing else. Taking it for any other ckpt_file
+        # silently returned the wrong epoch's vectors while the results row
+        # below went on reporting the ckpt_file that was asked for -- for
+        # gf-bpmf-train-hits-rl-fg-s19 the two tables differ by up to 0.0095.
+        # Same guard compute_embedding_matrix.py already had.
         emb_path = ckpt_dir / "gene_embeddings.npy"
-        if emb_path.exists():
+        if emb_path.exists() and ckpt_file == "model.pt":
             V = np.load(emb_path)
         else:
             import torch

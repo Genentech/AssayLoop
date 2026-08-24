@@ -20,6 +20,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
+from assayloop.scripts._figure_io import save_figure
 from assayloop import config
 from assayloop.scripts.analyze_gene_matrices import INIT_TYPES, _matrix_stems
 from assayloop.scripts.plot_embedding_drift import (
@@ -150,8 +151,7 @@ def main():
               % (src, r, np.median(rbo["init→+GRPO"]), n_excluded))
 
     fig.tight_layout()
-    fig.savefig(OUT, facecolor=WHITE, bbox_inches="tight")
-    fig.savefig(str(OUT).replace(".png", ".pdf"), facecolor=WHITE, bbox_inches="tight")
+    save_figure(fig, OUT, vector_dpi=300, facecolor=WHITE, bbox_inches="tight")
     print("wrote", OUT)
 
 

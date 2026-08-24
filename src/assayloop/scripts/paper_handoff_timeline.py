@@ -29,6 +29,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from assayloop import config
+from assayloop.data.gene_sets import reactome_gmt_path
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("paper_handoff_timeline")
@@ -166,10 +167,8 @@ def _load_pathway_membership():
     Broad disease/infection/meiosis pathways are dropped (see
     ODD_PATHWAY_PATTERNS) so they never appear as a composition segment or as a
     shared-function label on an influence arc."""
-    gmt = DATA_DIR / "gene_sets" / "ReactomePathways.gmt"
+    gmt = reactome_gmt_path()
     membership = defaultdict(set)
-    if not gmt.exists():
-        return membership
     n_dropped = 0
     with open(gmt) as f:
         for line in f:

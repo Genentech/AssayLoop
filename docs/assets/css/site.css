@@ -1,0 +1,808 @@
+/* AssayLoop Pages — shared site styles.
+ *
+ * Ported from the AssayBench Pages site so the two project pages read as a
+ * matched pair, with an AssayLoop-specific method-family palette added. */
+
+:root {
+  --bg: #fafaf7;
+  --bg-elev: #ffffff;
+  --ink: #1b1f24;
+  --ink-2: #4b5563;
+  --ink-3: #6b7280;
+  --line: #e5e7eb;
+  --line-2: #d1d5db;
+  --accent: #4C90D9;
+  --accent-dark: #2f6db1;
+  --highlight: #1FA187;
+  --warn: #d97706;
+  --danger: #c75146;
+  --serif: "Source Serif Pro", "STIX Two Text", "Georgia", "Times New Roman", serif;
+  --sans: "Inter", "Segoe UI", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+  --mono: "JetBrains Mono", "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --maxw: 980px;
+  --maxw-wide: 1280px;
+
+  /* Method families. These are the groupings full_genome_table.py already
+   * emits section headers for, so the site colors and the paper's table
+   * sections partition the methods the same way. */
+  --fam-llm: #4C90D9;          /* frontier LLMs */
+  --fam-assayllm: #7C5CBF;     /* AssayLLM (fine-tuned Qwen) */
+  --fam-classical: #8a8880;    /* prior-hit, Screen-kNN, BPMF, MAML */
+  --fam-agent: #d97706;        /* agent harnesses + external baselines */
+  --fam-assayformer: #1FA187;  /* AssayFormer */
+  --fam-assayloop: #c2410c;    /* AssayLoop handoff — the paper's headline rows */
+  --fam-ablation: #9ca3af;     /* AssayFormer ablations — deliberately recessive */
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+
+/* A backstop, not a substitute for sizing each figure. The rasterised paper
+ * PDFs are two to four thousand pixels wide; without this, one that slips
+ * through without its own rule renders at natural size and pushes the whole
+ * page sideways. */
+img, svg { max-width: 100%; height: auto; }
+body {
+  font-family: var(--serif);
+  color: var(--ink);
+  background: var(--bg);
+  line-height: 1.55;
+  font-size: 16.5px;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+a { color: var(--accent-dark); text-decoration: none; border-bottom: 1px solid transparent; transition: border-color 120ms ease; }
+a:hover { border-bottom-color: var(--accent-dark); }
+
+code, pre { font-family: var(--mono); font-size: 0.92em; }
+pre {
+  background: #f3f4f6;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 14px 16px;
+  overflow-x: auto;
+  line-height: 1.45;
+  font-size: 13px;
+}
+
+/* ---------------------------------------------------------------- header */
+
+header.site-header {
+  background: var(--bg-elev);
+  border-bottom: 1px solid var(--line);
+  padding: 14px 28px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  backdrop-filter: saturate(180%) blur(8px);
+}
+.site-header-inner {
+  max-width: var(--maxw-wide);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.site-brand {
+  font-family: var(--sans);
+  font-weight: 700;
+  font-size: 17px;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  border-bottom: none;
+}
+.site-brand:hover { border-bottom: none; opacity: 0.85; }
+.site-brand-sub {
+  color: var(--ink-3);
+  font-weight: 500;
+  font-size: 13px;
+  margin-left: 4px;
+}
+.site-nav {
+  display: flex;
+  gap: 18px;
+  margin-left: auto;
+  font-family: var(--sans);
+  font-size: 13.5px;
+}
+.site-nav a {
+  color: var(--ink-2);
+  border-bottom: none;
+}
+.site-nav a.active {
+  color: var(--ink);
+  font-weight: 600;
+}
+.site-nav a:hover { color: var(--accent-dark); border-bottom: none; }
+
+/* ---------------------------------------------------------------- main */
+
+main { padding: 32px 28px 80px; }
+.container { max-width: var(--maxw); margin: 0 auto; }
+.container-wide { max-width: var(--maxw-wide); margin: 0 auto; }
+
+h1, h2, h3, h4 {
+  font-family: var(--sans);
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--ink);
+  line-height: 1.25;
+}
+h1 { font-size: 38px; margin: 0 0 12px; }
+h1.paper-title { font-size: 34px; margin-bottom: 8px; }
+h2 { font-size: 22px; margin: 36px 0 12px; }
+h3 { font-size: 17px; margin: 24px 0 8px; }
+
+.kicker {
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin: 0 0 8px;
+}
+
+.lede {
+  font-size: 18.5px;
+  color: var(--ink-2);
+  line-height: 1.65;
+  margin: 14px 0 26px;
+}
+
+.paper-authors {
+  font-family: var(--sans);
+  font-size: 14.5px;
+  color: var(--ink-2);
+  margin-bottom: 14px;
+  line-height: 1.55;
+}
+.paper-authors .equal,
+.paper-affil .equal { color: var(--highlight); font-weight: 700; }
+.paper-affil {
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--ink-3);
+  margin-bottom: 18px;
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 18px 0 24px;
+}
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: 6px;
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 600;
+  background: #111827;
+  color: #fff !important;
+  border: 1px solid #111827;
+  border-bottom: 1px solid #111827 !important;
+}
+.badge.alt { background: var(--accent); border-color: var(--accent); }
+.badge.alt-2 { background: var(--highlight); border-color: var(--highlight); }
+.badge.alt-3 { background: var(--warn); border-color: var(--warn); }
+.badge.alt-4 { background: var(--fam-assayloop); border-color: var(--fam-assayloop); }
+.badge:hover { opacity: 0.92; }
+
+.section-divider {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 36px 0 24px;
+}
+
+.callout {
+  border-left: 3px solid var(--accent);
+  background: #f0f6fc;
+  padding: 14px 18px;
+  margin: 22px 0;
+  font-size: 15.5px;
+  color: var(--ink);
+  border-radius: 0 6px 6px 0;
+}
+.callout strong { color: var(--accent-dark); }
+.callout.note {
+  border-left-color: var(--warn);
+  background: #fffaf0;
+}
+.callout.note strong { color: var(--warn); }
+
+.bullets { padding-left: 1.2em; margin: 12px 0 18px; }
+.bullets li { margin-bottom: 6px; }
+
+/* ---------------------------------------------------------------- cards */
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 18px;
+  margin: 28px 0;
+}
+.feature-card {
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 18px 18px 20px;
+  display: flex;
+  flex-direction: column;
+  transition: border-color 120ms ease, transform 120ms ease;
+}
+.feature-card:hover {
+  border-color: var(--accent);
+  transform: translateY(-2px);
+}
+.feature-card a { color: var(--ink); border-bottom: none; }
+.feature-card a:hover { border-bottom: none; }
+.feature-card .feature-kicker {
+  font-family: var(--sans);
+  font-size: 11.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin-bottom: 6px;
+}
+.feature-card h3 { font-size: 18px; margin: 0 0 6px; }
+.feature-card p {
+  margin: 0;
+  font-size: 14.5px;
+  color: var(--ink-2);
+  line-height: 1.55;
+}
+.feature-card .feature-cta {
+  font-family: var(--sans);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-dark);
+  margin-top: 12px;
+}
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 14px;
+  margin: 20px 0 28px;
+}
+.stat-card {
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px 18px;
+}
+.stat-card .stat-value {
+  font-family: var(--sans);
+  font-weight: 700;
+  font-size: 28px;
+  color: var(--ink);
+  line-height: 1.1;
+}
+.stat-card .stat-label {
+  font-family: var(--sans);
+  font-size: 12.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+  margin-top: 6px;
+}
+
+/* ---------------------------------------------------------------- controls */
+
+.controls {
+  display: flex;
+  align-items: flex-end;
+  gap: 18px;
+  flex-wrap: wrap;
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px 18px;
+  margin: 18px 0 22px;
+  font-family: var(--sans);
+}
+.controls .control { display: flex; flex-direction: column; gap: 4px; }
+/* A class selector outranks the browser's `[hidden] { display: none }`, so the
+ * rule above was un-hiding every control the JS hides -- the recovery page's
+ * screen picker sat there in "mean over all screens" mode doing nothing. */
+.controls .control[hidden] { display: none; }
+.controls label {
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink-3);
+  font-weight: 600;
+}
+.controls select, .controls input[type="search"], .controls input[type="text"] {
+  font-family: var(--sans);
+  font-size: 13.5px;
+  padding: 6px 10px;
+  border: 1px solid var(--line-2);
+  border-radius: 5px;
+  background: #fff;
+  color: var(--ink);
+  min-width: 180px;
+}
+.controls input[type="search"] { min-width: 240px; }
+.controls select[multiple] { min-height: 132px; }
+
+.button {
+  display: inline-block;
+  background: #111827;
+  color: #fff;
+  font-family: var(--sans);
+  font-size: 13.5px;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 5px;
+  border: none;
+  cursor: pointer;
+}
+.button:hover { background: #1f2937; color: #fff; border-bottom: none; }
+.button.secondary {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--line-2);
+}
+.button.secondary:hover { background: #f3f4f6; color: var(--ink); }
+
+/* ---------------------------------------------------------------- tables */
+
+.table-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg-elev);
+}
+table.leaderboard {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--sans);
+  font-size: 13.5px;
+}
+table.leaderboard th, table.leaderboard td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  text-align: right;
+  white-space: nowrap;
+}
+table.leaderboard th:first-child, table.leaderboard td:first-child,
+table.leaderboard th.left, table.leaderboard td.left { text-align: left; }
+table.leaderboard thead th {
+  background: #f9fafb;
+  font-weight: 700;
+  color: var(--ink-2);
+  cursor: pointer;
+  user-select: none;
+  position: sticky;
+  top: 0;
+}
+table.leaderboard thead th:hover { background: #f3f4f6; }
+table.leaderboard thead th .sort-indicator {
+  color: var(--ink-3);
+  margin-left: 4px;
+  font-size: 11px;
+}
+table.leaderboard tbody tr:hover { background: #f9fafb; }
+table.leaderboard tbody tr.highlight { background: #fff7e6; }
+table.leaderboard tbody tr.family-row td {
+  background: #f3f4f6;
+  font-weight: 700;
+  color: var(--ink-2);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 11.5px;
+}
+table.leaderboard td.indent { padding-left: 30px; }
+/* A method with no result on this build. Greyed and tagged rather than left
+   as a row of bare dashes, which reads as "scored nothing". */
+table.leaderboard tbody tr.unevaluated { color: var(--ink-3); }
+table.leaderboard tbody tr.unevaluated .model-pill .swatch { opacity: 0.35; }
+.na-tag {
+  font-family: var(--sans);
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--danger);
+  border: 1px solid var(--danger);
+  border-radius: 3px;
+  padding: 0 4px;
+  margin-left: 6px;
+}
+.model-pill { display: inline-flex; align-items: center; gap: 6px; }
+.model-pill .swatch { width: 8px; height: 8px; border-radius: 50%; }
+.category-tag {
+  font-family: var(--sans);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+}
+th[title] { text-decoration: underline dotted var(--line-2); text-underline-offset: 3px; }
+
+/* ---------------------------------------------------------------- charts */
+
+.plot {
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px;
+  margin: 16px 0 24px;
+  overflow: hidden;
+  position: relative;  /* the hover card below is positioned against this */
+}
+/* min-height, not height, so a taller Plotly layout can grow instead of
+ * clipping into the next block. */
+.plot-tall { min-height: 620px; }
+
+/* Hand-drawn hover box for the recovery curves. Plotly's own unified box lists
+ * traces in trace order; this one is sorted by the value at the hovered x, so
+ * the reading order matches the order of the curves on screen. */
+.hover-card {
+  position: absolute;
+  z-index: 5;
+  pointer-events: none;
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid var(--line-2);
+  border-radius: 6px;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12);
+  padding: 8px 10px;
+  font-family: var(--sans);
+  font-size: 12px;
+  line-height: 1.5;
+  max-width: 380px;
+}
+.hover-card .hover-x {
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 4px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--line);
+}
+.hover-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+.hover-swatch {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+}
+.hover-name {
+  flex: 1 1 auto;
+  color: var(--ink-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* The genes-assayed total on a recovery-curve hover row. Quiet and to the left
+ * of the value it qualifies: the reader is comparing values down the column,
+ * and this is the "at what cost" note beside each one. */
+.hover-sub {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  font-size: 11px;
+  color: var(--ink-3);
+}
+.hover-value {
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+/* The one-line "N of M shown" / "n genes highlighted" notes that sit above and
+ * below a chart. Quiet on purpose -- they carry counts and caveats, not
+ * findings. */
+.chart-status {
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--ink-3);
+  margin: 6px 0;
+}
+
+.figure-caption {
+  font-family: var(--sans);
+  font-size: 13.5px;
+  color: var(--ink-2);
+  line-height: 1.55;
+  margin: -4px 0 24px;
+  max-width: 880px;
+}
+.figure-caption .label { font-weight: 700; color: var(--ink); }
+
+/* A single asterisk-free footnote at the end of a page: the caveat that would
+ * be a distraction inline but should still be findable, so it keeps an id and
+ * the charts link down to it. */
+.footnote {
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--ink-3);
+  line-height: 1.6;
+  max-width: 720px;
+  margin: 48px 0 8px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.footnote:target { color: var(--ink-2); }
+
+/* Colour key for a chart Plotly will not draw a legend for -- sunbursts have
+ * no legend of their own, and the whole point of the six panels is that a hue
+ * means the same category in all of them. */
+.swatch-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 18px;
+  font-family: var(--sans);
+  font-size: 12.5px;
+  color: var(--ink-2);
+  margin: 4px 0 10px;
+}
+.swatch-item { display: inline-flex; align-items: center; gap: 6px; }
+.swatch-item .swatch {
+  flex: 0 0 auto;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+/* ------------------------------------------------------------ paper figures */
+
+/* A `data-figures` slot, once figure-strip.js has filled it. `auto-fit`
+ * collapses the empty tracks, so a lone figure spans the column and a pair
+ * sits side by side -- which is what a section asking for two figures at once
+ * almost always wants. */
+.figure-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 20px;
+  align-items: start;
+  margin: 22px 0;
+}
+
+/* One card per figure. The image is the whole point, so it runs the full width
+ * of the card and the caption sits under it in the smaller sans face. */
+.fig-card {
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 18px 20px 20px;
+  margin: 0;
+}
+.fig-card img {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  margin-bottom: 14px;
+}
+.fig-card figcaption {
+  font-family: var(--sans);
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+.fig-card figcaption strong { color: var(--ink); }
+.fig-card .fig-section {
+  display: block;
+  font-size: 11.5px;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 5px;
+}
+/* A figure the build could not produce. Visible, and visibly not a figure --
+ * the alternative is a section that is quietly one panel shorter than it
+ * should be. */
+.fig-card-missing {
+  background: #fdfaf3;
+  border-color: #f0e3c8;
+}
+.fig-card-missing .fig-section { color: var(--warn); }
+
+.copy-btn {
+  font-family: var(--sans);
+  font-size: 11.5px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: 4px;
+  border: 1px solid var(--line-2);
+  background: #fff;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.copy-btn:hover { background: #f3f4f6; }
+
+/* ---------------------------------------------------------------- citation */
+
+.bibtex {
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 16px 18px;
+  border-radius: 8px;
+  font-family: var(--mono);
+  font-size: 12.5px;
+  line-height: 1.55;
+  overflow-x: auto;
+  white-space: pre;
+}
+.bibtex .key { color: #fbbf24; }
+.bibtex .field { color: #93c5fd; }
+
+footer.site-footer {
+  border-top: 1px solid var(--line);
+  padding: 24px 28px 40px;
+  font-family: var(--sans);
+  font-size: 13px;
+  color: var(--ink-3);
+}
+.site-footer-inner {
+  max-width: var(--maxw-wide);
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.loading {
+  font-family: var(--sans);
+  font-size: 14px;
+  color: var(--ink-3);
+  padding: 32px 0;
+  text-align: center;
+}
+.error-state {
+  font-family: var(--sans);
+  font-size: 14px;
+  color: var(--danger);
+  padding: 22px;
+  background: #fef2f2;
+  border: 1px solid #fee2e2;
+  border-radius: 6px;
+  white-space: pre-wrap;
+}
+
+/* ------------------------------------------------------------- hero + panels */
+
+/* A displayed formula. Not MathJax: the handful of equations on this site are
+ * simple enough to set in the body serif, and a MathJax bundle from a CDN is a
+ * lot of weight and a lot of flash-of-unstyled-content for eight of them. */
+.equation {
+  text-align: center;
+  font-size: 17.5px;
+  margin: 16px 0;
+  padding: 10px 14px;
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow-x: auto;
+}
+.equation em { font-style: italic; }
+
+/* The landing page's teaser, and the composed pipeline figure on the method
+ * page. Both stay inside the text column: an earlier version bled the teaser
+ * out to either side of it, which on a narrow window pushed it off the right
+ * edge of the page. `margin` is set on all four sides so no UA default
+ * margin-inline survives to widen it. */
+.hero-figure { margin: 28px 0 8px; max-width: 100%; }
+.hero-figure img {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.hero-figure figcaption {
+  font-family: var(--sans);
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--ink-2);
+  margin-top: 10px;
+}
+
+/* The pipeline figure, one panel at a time. At page width the composed figure
+ * is a wall of 6pt type; a panel on its own is legible.
+ *
+ * One column, not two. Two panels to a row read as a gallery -- the eye has to
+ * guess whether the order is across or down -- and these are eight numbered
+ * steps of one argument. Stacked and headed, the reading direction is the only
+ * one there is, and each panel gets the full text column instead of half of it.
+ */
+.panel-grid { margin: 22px 0 8px; }
+.panel {
+  margin: 0 0 34px;
+}
+.panel:last-child { margin-bottom: 8px; }
+/* The step heading. The rule above it does the separating, so the panel needs
+ * no card border of its own -- one box per step down a long page is a lot of
+ * chrome for eight steps. */
+.panel-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-family: var(--sans);
+  font-size: 17px;
+  margin: 0 0 12px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+.panel:first-child .panel-head { border-top: none; padding-top: 0; }
+.panel .panel-letter {
+  flex: 0 0 auto;
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--accent-dark);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 1px 7px;
+}
+/* Crop beside its caption, not above it. build_paper_panels.py renders the
+ * source PDF at 2.4x, so letting a panel fill the column drew it at roughly
+ * twice its printed size -- eight steps, each about a screenful, and the whole
+ * point of the walkthrough is that you can go down it. */
+.panel figure {
+  margin: 0;
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px 18px 18px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 20px;
+  align-items: center;
+}
+/* Capped by height, not width: the crops run from 2.55:1 down to 1.12:1, and a
+ * width cap alone leaves the squarer panels towering over the wide ones. */
+.panel img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  max-height: 300px;
+  height: auto;
+  background: #fff;
+  /* Left-aligned, not centred: the crops are eight different widths, and
+   * centring each one in its column makes the left edge wander down the page. */
+  margin: 0;
+}
+@media (max-width: 760px) {
+  .panel figure { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  .panel img { max-height: 240px; }
+}
+.panel figcaption {
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--ink-2);
+}
+
+.cmd {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  background: #f6f7f9;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 2px 7px;
+  overflow-wrap: anywhere;
+}
+
+.callout.danger {
+  border-left-color: var(--danger);
+  background: #fdf3f2;
+}
+.callout.danger strong { color: var(--danger); }

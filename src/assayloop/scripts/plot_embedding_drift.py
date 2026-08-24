@@ -27,6 +27,7 @@ import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from assayloop.scripts._figure_io import save_figure
 from assayloop import config
 
 ANALYSIS = config.OUTPUT_PATH / "analysis"
@@ -219,8 +220,7 @@ def main():
              color=MUTED, style="italic")
 
     fig.tight_layout()
-    fig.savefig(OUT, facecolor=WHITE, bbox_inches="tight")
-    fig.savefig(str(OUT).replace(".png", ".pdf"), facecolor=WHITE, bbox_inches="tight")
+    save_figure(fig, OUT, vector_dpi=300, facecolor=WHITE, bbox_inches="tight")
     print("wrote", OUT)
     print("pairwise r(init, +GRPO) = %.4f" % r_pair)
     for lab in labels:

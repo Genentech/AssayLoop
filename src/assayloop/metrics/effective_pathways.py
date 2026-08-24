@@ -1,9 +1,12 @@
 """Effective number of Reactome pathways covered by a set of gene picks.
 
-``exp(Shannon entropy)`` over the *leaf* pathway distribution of a bag of
-genes, exponentiated to give an effective count. A method that concentrates on
-a few programs scores low; one that spreads across distinct biology scores
-high.
+``exp(Shannon entropy)`` over the pathway distribution of a bag of genes,
+exponentiated to give an effective count. A method that concentrates on a few
+programs scores low; one that spreads across distinct biology scores high.
+
+The vocabulary counted over is Reactome's **level-2 groups** (186 nodes here),
+not the GMT's 2012 leaf sets -- see :func:`gmt_membership` for why the leaf tier
+is too fine to carry an interpretable count.
 
 **Each gene is assigned to exactly one of its pathways, drawn uniformly, and
 the estimate is averaged over draws.** The obvious alternative -- give every
@@ -12,12 +15,14 @@ wedges show, and it is what these counts equal *in expectation*, but it must
 not be used for the entropy: it gives a bag of ``m`` genes a support ceiling of
 ``sum(k)`` rather than ``m``, so a method picking well-studied hub genes scores
 high for annotation depth alone. Measured, that inverts the batch-scope
-ranking: kNN's picks average 17.6 Reactome pathways each against a uniform
-draw's 7.1, which is enough to score kNN *above* random at EP-B (148 vs 105)
-while it sits far below at EP-D (452 vs 1008). The ratio is scale-free, so a
-larger reference count widens the gap instead of closing it -- the fix has to
-be the one-pathway-per-gene assignment, which pins every method's ceiling to
-``m`` exactly.
+ranking: kNN's picks sit in 5.03 level-2 groups each against a uniform draw's
+2.52, which is enough to score kNN *above* random on fractional weights at
+batch scope (43.7 vs 41.1) while one pathway per gene puts it correctly below
+(19.0 vs 21.8) and it sits far below at EP-D. The ratio is scale-free, so a
+larger reference count widens the gap instead of closing it, and coarsening the
+vocabulary does not remove it either -- the fix has to be the
+one-pathway-per-gene assignment, which pins every method's ceiling to ``m``
+exactly.
 
 Three scopes, from the same pick stream:
 
@@ -98,29 +103,87 @@ RETENTION = 0.95
 # on real pick streams (seeds 0-2, the six sunburst methods) and raising R until
 # it sits well under the printed precision. Already at R=100 the spread is
 # <= 0.02 (EP-B), and EP-B is the tightest scope: it is bounded above by M_BATCH
-# so its between-method range is only ~4.5 (24.7 for Gemini-3.1-Pro to 29.2 for a
-# uniform draw). That is still a 200x signal-to-noise ratio, which is why EP-B is
-# printed to one decimal rather than zero.
+# so its between-method range is ~8 (13.8 for AssayLLM to 21.8 for a uniform
+# draw). That is a 400x signal-to-noise ratio; all three scopes are printed to
+# one decimal.
 R_BATCH = 400
 R_SCREEN = 400
 R_DATASET = 300
 
 SEED = 0
 
+_SCOPES = ("batch", "screen", "dataset")
+
+
+def scope_rng(scope: str, seed: int = SEED):
+    """The RNG stream :func:`effective_pathways` draws that scope's subsamples from.
+
+    Exposed so a caller computing one scope standalone -- the sunburst's Random
+    panel, the heatmap's EP-D row -- reproduces the table's number exactly
+    instead of landing ~0.1 away on a different draw.
+    """
+    return np.random.default_rng([seed, _SCOPES.index(scope)])
+
 
 # ---------------------------------------------------------------------------
 # Membership
 # ---------------------------------------------------------------------------
 
-@lru_cache(maxsize=1)
-def gmt_membership() -> dict[str, tuple[str, ...]]:
-    """gene (upper) -> Reactome pathways, the 5-200 gene disease-filtered GMT.
+OTHER_GROUP = "Other (unmapped Reactome leaf)"
 
-    Same source the pathway sunburst and the handoff timeline use, so the three
-    stay consistent by construction.
+
+@lru_cache(maxsize=1)
+def leaf_membership() -> dict[str, tuple[str, ...]]:
+    """gene (upper) -> Reactome *leaf* sets, the 5-200 gene disease-filtered GMT.
+
+    The raw tier, before the level-2 lift :func:`gmt_membership` applies. Used
+    by the sunburst and the LLM pathway heatmap, which do their own roll-up
+    through :mod:`assayloop.scripts.pathway_hierarchy` and need leaf names to
+    map from; nothing scored in the tables uses it.
     """
     from assayloop.scripts.paper_handoff_timeline import _load_pathway_membership
     return {g: tuple(sorted(ps)) for g, ps in _load_pathway_membership().items()}
+
+
+@lru_cache(maxsize=1)
+def gmt_membership() -> dict[str, tuple[str, ...]]:
+    """gene (upper) -> Reactome *level-2* groups it belongs to.
+
+    The GMT itself (5-200 gene sets, disease-filtered) is the same source the
+    pathway sunburst and the handoff timeline use, so the three stay consistent
+    by construction -- but its 2012 leaf sets are far too fine to count with.
+    With 2012 categories over 10,480 annotated genes, 30 genes drawn one
+    pathway each essentially never collide, so EP-B is pinned just under
+    ``M_BATCH`` for every method (24.5-27.6 out of 30) and the statistic
+    measures "how close to M did you get" rather than how much biology the
+    batch touched.
+
+    Each leaf is therefore lifted to its Reactome level-2 group -- the direct
+    children of the 29 top-level roots ("Innate Immune System", "Cell Cycle,
+    Mitotic", "Signaling by Receptor Tyrosine Kinases", ...) -- via
+    :mod:`assayloop.scripts.pathway_hierarchy`, the same tier the sunburst's
+    outer ring draws. 185 are populated by this GMT; the 36 leaf sets with no
+    hierarchy entry share a single ``OTHER_GROUP`` bucket rather than each
+    becoming its own node, which would pad the vocabulary with singletons, for
+    186 nodes in all. A uniform draw from the f2 acquisition universe then
+    scores 21.8 / 56.4 / 82.1 at the three scopes, so the counts read as
+    absolute numbers of biological programs against a fixed, nameable
+    denominator.
+
+    Coarsening also makes the estimate far less sample-size dependent, because
+    the vocabulary saturates well before the scope does: a uniform draw gains
+    34.6 groups going from M=30 to M=200 but only 25.7 more going from M=200 to
+    M=6000, against 79.5 and 714.6 at leaf tier. Only batch scope still leans
+    hard on rarefaction. Lifting one tier further, to the 29 roots,
+    is more readable still but flattens EP-D to 15.3-20.0 against a random
+    ceiling of 19.2, collapsing the across-screen turnover gap from ~30 points
+    to ~5. Level-2 is the coarsest vocabulary that keeps it.
+    """
+    from assayloop.scripts.pathway_hierarchy import load as load_hierarchy
+
+    sub_of = load_hierarchy()["subcategory_of"]
+    return {g: tuple(sorted({sub_of.get(p, OTHER_GROUP) for p in ps}))
+            for g, ps in leaf_membership().items()}
 
 
 def effective_n(weights) -> float:
@@ -271,7 +334,13 @@ def effective_pathways(screen_batches, *, rarefy: bool = True,
     all_picks = [len(b) for batches in screen_batches for b in batches if b]
     min_full = 0.9 * float(np.median(all_picks)) if all_picks else 0.0
 
-    rng = np.random.default_rng(seed)
+    # One independent stream per scope rather than one shared generator. With a
+    # shared generator the dataset draw inherits whatever state the batch and
+    # screen draws left behind, so EP-D silently shifts if R_BATCH changes or a
+    # method has a different number of batches -- and a caller that wants EP-D
+    # alone (the sunburst hole, the heatmap row) cannot reproduce it, landing
+    # ~0.1 off. Independent streams make each scope reproducible on its own.
+    rng_b, rng_s, rng_d = (scope_rng(s, seed) for s in _SCOPES)
     n_picks = 0
     dropped = 0
     batch_elig = batch_kept = 0     # full batches offered / rarefied
@@ -305,7 +374,7 @@ def effective_pathways(screen_batches, *, rarefy: bool = True,
             batch_elig += 1
             per_screen_raw.append(u.raw())
             if rarefy:
-                v = u.rarefied(M_BATCH, R_BATCH, rng)
+                v = u.rarefied(M_BATCH, R_BATCH, rng_b)
                 if v is None:
                     dropped += 1
                 else:
@@ -323,7 +392,7 @@ def effective_pathways(screen_batches, *, rarefy: bool = True,
                 screen_elig += 1
                 screen_raw.append(u.raw())
                 if rarefy:
-                    v = u.rarefied(M_SCREEN, R_SCREEN, rng)
+                    v = u.rarefied(M_SCREEN, R_SCREEN, rng_s)
                     if v is None:
                         dropped += 1
                     else:
@@ -338,7 +407,7 @@ def effective_pathways(screen_batches, *, rarefy: bool = True,
         if u.n >= 2:
             ep_d_raw = u.raw()
             if rarefy:
-                ep_d = u.rarefied(M_DATASET, R_DATASET, rng)
+                ep_d = u.rarefied(M_DATASET, R_DATASET, rng_d)
                 if ep_d is None:
                     dropped += 1
 

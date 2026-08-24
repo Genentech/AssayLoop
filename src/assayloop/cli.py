@@ -1214,7 +1214,7 @@ def train_ranker_rl(
     ),
     warm_start_glm_train: Optional[str] = typer.Option(
         None, "--warm-start-glm-train",
-        help="GLM-5.1 handoff training: path to the train traces jsonl (e.g. output/datasets/GLM-5-1_train.jsonl, from collect-dataset). Each rollout pre-observes GLM's first n acquired genes (true labels) and the transformer continues for n_steps-n rounds; terminal NVR is over the full budget.",
+        help="GLM-5.1 handoff training: path to the train traces jsonl (e.g. output/datasets/GLM-5-1_train.jsonl, from collect-dataset). Each rollout pre-observes GLM's first n acquired genes (true labels) and the transformer continues for n_steps-n rounds; terminal EF is over the full budget.",
     ),
     warm_start_n: str = typer.Option(
         "0", "--warm-start-n",
@@ -1234,7 +1234,7 @@ def train_ranker_rl(
     ),
     handoff_select: str = typer.Option(
         "off", "--handoff-select",
-        help="Save a separate model_handoff.pt at the best handoff-VAL epoch. 'gemini' evaluates a Gemini warm-start->ranker handoff on val (+ test) every eval round (adjusted NVR); 'off' disables.",
+        help="Save a separate model_handoff.pt at the best handoff-VAL epoch. 'gemini' evaluates a Gemini warm-start->ranker handoff on val (+ test) every eval round (adjusted EF); 'off' disables.",
     ),
     handoff_val_prefix: str = typer.Option("sweep-6cd2d623-", "--handoff-val-prefix", help="Run-dir prefix of the LLM's validation traces for the handoff eval."),
     handoff_test_prefix: str = typer.Option("sweep-a79fd5ce-", "--handoff-test-prefix", help="Run-dir prefix of the LLM's test traces for the handoff eval."),
@@ -1358,6 +1358,9 @@ def train_ranker_rl(
         summary = run_rl_training(**rl_kwargs)
 
     rprint(f"[green]RL-trained[/] ranker -> {summary['out_dir']}")
+    # nvr_adj is EF. The label is spelled the way the key is spelled in
+    # summary.json / history.json, which the published checkpoints already
+    # carry, so grepping the printout finds the field in the file.
     rprint(f"  init  eval nvr_adj: {summary.get('init_eval_nvr_adj')} "
            f"(raw={summary.get('init_eval_n_hits_vs_random')}, knn={summary.get('init_eval_knn')})")
     rprint(f"  best  eval nvr_adj: {summary.get('best_eval_nvr_adj')} "
@@ -1437,10 +1440,10 @@ def eval_ranker(
         ckpt_file=ckpt_file,
     )
     agg = sweep.aggregate or {}
-    ctx_nvr = agg.get("mean_n_hits_vs_random")
+    ctx_ef = agg.get("mean_n_hits_vs_random")
     ctx_auc = agg.get("mean_hits_auc")
     rprint(f"[green]Eval sweep[/] {sweep.sweep_id} ({screen_set}): "
-           f"mean_n_hits_vs_random={ctx_nvr}, mean_hits_auc={ctx_auc}")
+           f"mean_n_hits_vs_random={ctx_ef}, mean_hits_auc={ctx_auc}")
 
     if ablate_context:
         rprint("[cyan]Ablation[/] running no-context (static) AL sweep...")
@@ -1450,15 +1453,15 @@ def eval_ranker(
             ckpt_file=ckpt_file, ignore_context=True,
         )
         agg_nc = sweep_nc.aggregate or {}
-        nc_nvr = agg_nc.get("mean_n_hits_vs_random")
+        nc_ef = agg_nc.get("mean_n_hits_vs_random")
         nc_auc = agg_nc.get("mean_hits_auc")
         rprint(f"[green]No-context sweep[/] {sweep_nc.sweep_id} ({screen_set}): "
-               f"mean_n_hits_vs_random={nc_nvr}, mean_hits_auc={nc_auc}")
-        d_nvr = _safe_delta(ctx_nvr, nc_nvr)
+               f"mean_n_hits_vs_random={nc_ef}, mean_hits_auc={nc_auc}")
+        d_ef = _safe_delta(ctx_ef, nc_ef)
         d_auc = _safe_delta(ctx_auc, nc_auc)
         rprint(f"[bold]Context delta[/] (ctx - noctx): "
-               f"n_hits_vs_random={d_nvr}, hits_auc={d_auc}")
-        if d_nvr is not None and abs(d_nvr) < 1e-6:
+               f"n_hits_vs_random={d_ef}, hits_auc={d_auc}")
+        if d_ef is not None and abs(d_ef) < 1e-6:
             rprint("[yellow]~zero delta: the model is not using the AL context.[/]")
 
     if context_value:
@@ -1624,7 +1627,7 @@ _PAPER_FIGURES: dict[str, dict[str, str]] = {
     "scaling": {
         "module": "assayloop.scripts.scaling_law_plot",
         "ref": "Figure 8",
-        "what": "NVR@10 vs. training-set size and vs. model size.",
+        "what": "EF@10 vs. training-set size and vs. model size.",
         "needs": "scaling_law_sweep then scaling_law_eval",
     },
     "embedding-init": {

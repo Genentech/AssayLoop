@@ -6,8 +6,16 @@ groups inside that category (Immune System -> Innate / Adaptive / Cytokine
 Signaling, ...), drawn as alternating tints of the parent hue. A method that
 concentrates on a few programs shows a couple of fat wedges; a method that
 spreads shows a finely divided ring. The number in the hole is the effective
-number of pathways, exp(Shannon entropy) over the *leaf* pathway distribution
--- the same spread the rings show, at full resolution, as one number.
+number of pathways, exp(Shannon entropy) over the pathway distribution -- the
+same spread the rings show, as one number.
+
+Two Reactome granularities are in play and they are deliberately different. The
+*rings* are drawn from the GMT's leaf sets, rolled up here into the two drawn
+tiers, because that is what gives the outer ring its resolution. The *numbers*
+are the EP statistic of :mod:`assayloop.metrics.effective_pathways`, which
+counts over the 186 level-2 groups -- exactly the tier the outer ring shows.
+So the hole and footer are a faithful summary of the outer ring, and they match
+tab:baselines_results digit for digit.
 
 Attribution: every acquired gene carries weight 1, split evenly across the
 Reactome pathways it belongs to (the 5-200 gene, disease-filtered GMT of
@@ -42,9 +50,9 @@ from collections import defaultdict
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import numpy as np
 from matplotlib.patches import Patch
 
+from assayloop.scripts._figure_io import save_figure
 from assayloop import config
 from assayloop.scripts.pathway_hierarchy import load as load_hierarchy
 
@@ -82,9 +90,14 @@ OTHER = "#a9a79f"
 # ---------------------------------------------------------------------------
 
 def _gmt_membership() -> dict[str, list[str]]:
-    """gene -> pathways, same 5-200 gene filtered GMT the PO metric uses."""
-    from assayloop.metrics.effective_pathways import gmt_membership
-    return {g: list(ps) for g, ps in gmt_membership().items()}
+    """gene -> *leaf* pathways, the 5-200 gene filtered GMT the PO metric uses.
+
+    Deliberately the leaf tier, not the level-2 vocabulary the EP columns score
+    over: this module rolls leaves up to the level-2 and top-level rings itself
+    via ``cat_of``/``sub_of``, so it needs leaf names to map from.
+    """
+    from assayloop.metrics.effective_pathways import leaf_membership
+    return {g: list(ps) for g, ps in leaf_membership().items()}
 
 
 def _weights(genes, membership, cat_of, sub_of):
@@ -135,25 +148,31 @@ def _run_screen_batches(prefix: str) -> list[list[list[str]]]:
     return out
 
 
-def _rarefied_eff(genes, membership, m=None, r=None) -> float:
+def _rarefied_eff(genes, membership, m=None, r=None, scope="dataset") -> float:
     """``exp(H)`` over ``genes``, rarefied to ``m`` annotated genes.
 
     Defaults to the EP-D reference count, so the hole number matches
-    tab:baselines_results. One pathway is drawn per gene per replicate, as in
-    the table -- the wedges below are the expectation of that assignment, so the
-    two agree by construction. Against the old fractional plug-in this shifts
-    the panels by 10-13% but leaves their ranking identical; see
+    tab:baselines_results -- pass the level-2 ``ep_membership``, not the leaf
+    one the rings are drawn from. One pathway is drawn per gene per replicate,
+    as in the table, and the outer ring is the expectation of that same
+    assignment, so the hole summarises the ring it sits inside. Against the old
+    fractional plug-in this shifts the panels but leaves their ranking; see
     :mod:`assayloop.metrics.effective_pathways` for why the plug-in cannot be
     used at batch scope.
+
+    ``scope`` picks which of the table's three RNG streams to draw from, and
+    has to agree with ``m``: a fresh ``default_rng(SEED)`` is a different draw
+    from the one the table's dataset pass used, which lands the number ~0.1 off
+    on Monte-Carlo noise alone.
     """
     from assayloop.metrics.effective_pathways import (
-        M_DATASET, R_DATASET, SEED, _Unit)
+        M_DATASET, R_DATASET, _Unit, scope_rng)
     pid_of: dict[str, int] = {}
     for ps in membership.values():
         for p in ps:
             pid_of.setdefault(p, len(pid_of))
     u = _Unit(genes, membership, pid_of)
-    rng = np.random.default_rng(SEED)
+    rng = scope_rng(scope)
     v = u.rarefied(m or M_DATASET, r or R_DATASET, rng)
     # Too few annotated genes to hit the reference count: fall back to all of
     # them, still averaging over the pathway assignment, rather than switching
@@ -164,10 +183,13 @@ def _rarefied_eff(genes, membership, m=None, r=None) -> float:
 def build_cache() -> dict:
     hier = load_hierarchy()
     cat_of, sub_of = hier["category_of"], hier["subcategory_of"]
-    membership = _gmt_membership()
-
+    membership = _gmt_membership()          # leaf sets -- the rings
+    # ...and the level-2 vocabulary the table scores over -- the numbers. Same
+    # genes either way, so the annotated fraction and the Random panel's gene
+    # universe are unaffected by which one is used where.
     from assayloop.metrics.effective_pathways import (
-        M_BATCH, M_SCREEN, R_BATCH, R_SCREEN, effective_pathways)
+        M_BATCH, M_SCREEN, R_BATCH, R_SCREEN, effective_pathways, gmt_membership)
+    ep_membership = gmt_membership()
 
     out = {}
     for title, prefix in METHODS:
@@ -175,20 +197,25 @@ def build_cache() -> dict:
             genes = sorted(membership)                       # gene universe = random expectation
             # No runs to batch up: a uniform draw of M_BATCH / M_SCREEN annotated
             # genes from the universe *is* the reference value at those scopes.
-            ep_b = _rarefied_eff(genes, membership, M_BATCH, R_BATCH)
-            ep_s = _rarefied_eff(genes, membership, M_SCREEN, R_SCREEN)
+            ep_b = _rarefied_eff(genes, ep_membership, M_BATCH, R_BATCH, "batch")
+            ep_s = _rarefied_eff(genes, ep_membership, M_SCREEN, R_SCREEN, "screen")
+            ep_d = _rarefied_eff(genes, ep_membership)
         else:
             genes = _run_genes(prefix)
             if not genes:
                 raise SystemExit(f"no cached runs for {title!r} ({prefix}-NN-*)")
+            # All three from the one call, so the panel matches the table
+            # digit for digit: effective_pathways threads a single RNG through
+            # batch -> screen -> dataset, and recomputing EP-D from a fresh
+            # default_rng(SEED) lands ~0.1 away on Monte-Carlo noise alone.
             ep = effective_pathways(_run_screen_batches(prefix),
-                                    membership=membership)
-            ep_b, ep_s = ep["ep_batch"], ep["ep_screen"]
+                                    membership=ep_membership)
+            ep_b, ep_s, ep_d = ep["ep_batch"], ep["ep_screen"], ep["ep_dataset"]
         by_cat, by_sub, sub_cat, by_path, n_ann, n_tot = _weights(
             genes, membership, cat_of, sub_of)
         out[title] = {
             "by_cat": by_cat, "by_sub": by_sub, "sub_cat": sub_cat,
-            "eff_pathways": _rarefied_eff(genes, membership),
+            "eff_pathways": ep_d,
             "eff_pathways_raw": _effective_n(by_path.values()),
             "ep_batch": ep_b, "ep_screen": ep_s,
             "n_picks": n_tot, "n_annotated": n_ann,
@@ -281,7 +308,7 @@ def draw(data: dict) -> None:
 
         # hole: effective number of pathways (exp Shannon) -- the spread, as a number
         eff = d["eff_pathways"]
-        ax.text(0, 0.10, f"{eff:.0f}", ha="center", va="center", fontsize=15,
+        ax.text(0, 0.10, f"{eff:.1f}", ha="center", va="center", fontsize=15,
                 color=INK, fontweight="semibold")
         ax.text(0, -0.14, "EP-D", ha="center", va="center", fontsize=6.2,
                 color=MUTED)
@@ -303,7 +330,7 @@ def draw(data: dict) -> None:
 
         # square data window with headroom, so title/stat sit at a fixed
         # distance from the ring in every panel
-        stat = f"EP-B {d['ep_batch']:.1f}   EP-S {d['ep_screen']:.0f}"
+        stat = f"EP-B {d['ep_batch']:.1f}   EP-S {d['ep_screen']:.1f}"
         ax.set_xlim(-1.30, 1.30)
         ax.set_ylim(-1.30, 1.30)
         ax.text(0, 1.06, title, ha="center", va="bottom", fontsize=8.6, color=INK,
@@ -320,8 +347,7 @@ def draw(data: dict) -> None:
 
     fig.subplots_adjust(left=0.01, right=0.99, top=0.99, bottom=0.125,
                         wspace=0.02, hspace=0.02)
-    fig.savefig(OUT, facecolor=SURFACE, bbox_inches="tight")
-    fig.savefig(str(OUT).replace(".png", ".pdf"), facecolor=SURFACE, bbox_inches="tight")
+    save_figure(fig, OUT, facecolor=SURFACE, bbox_inches="tight")
     print("wrote", OUT)
 
 

@@ -25,7 +25,6 @@ import argparse
 import json
 import logging
 from collections import Counter, defaultdict
-from pathlib import Path
 
 import matplotlib
 matplotlib.use("Agg")
@@ -34,7 +33,9 @@ import matplotlib.patches as mpatches
 from matplotlib.patches import FancyArrowPatch
 import numpy as np
 
+from assayloop.scripts._figure_io import save_figure
 from assayloop import config
+from assayloop.data.gene_sets import reactome_gmt_path
 from assayloop.scripts.paper_handoff_timeline import (
     DEFAULT_SCREENS, ANALYSIS_DIR, METHOD_COLORS,
     load_method_rounds, _load_pathway_membership, _load_complex_membership,
@@ -396,11 +397,13 @@ def _load_complex_family_membership():
     corum_dir = config.ground_truth_dir("CORUM-HUMAN")
     membership = defaultdict(set)
     subunits = pd.read_parquet(corum_dir / "dimension_Subunit.parquet")
-    try:
-        cx = pd.read_parquet(corum_dir / "fact_Complex.parquet")
-        cid_to_name = dict(zip(cx.index, cx["complex_name"]))
-    except Exception:
-        cid_to_name = {}
+    # No try/except around this. Complex *names* are the only thing
+    # _match_complex_family has to work with, so swallowing a read error here
+    # left every family unmatched and the membership empty -- the same
+    # all-grey figure that the ground_truth_dir check above exists to prevent,
+    # arrived at one line later.
+    cx = pd.read_parquet(corum_dir / "fact_Complex.parquet")
+    cid_to_name = dict(zip(cx.index, cx["complex_name"]))
     by_cid = defaultdict(set)
     for _, row in subunits.iterrows():
         g = row.get("gene_name")
@@ -416,12 +419,9 @@ def _load_complex_family_membership():
 
 def _load_broad_pathway_membership():
     """gene(upper) -> {single Reactome top-level category} (highest priority)."""
-    gmt = (Path(__file__).resolve().parents[1] / "data" / "gene_sets"
-           / "ReactomePathways.gmt")
+    gmt = reactome_gmt_path()
     prio = {c: i for i, c in enumerate(BROAD_CATEGORIES)}
     gene_best = {}
-    if not gmt.exists():
-        return defaultdict(set)
     with open(gmt) as f:
         for line in f:
             parts = line.strip().split("\t")
@@ -821,10 +821,7 @@ def _make_diverging_figure(mem, arc_mem, metric_name, tag, screens, all_rounds,
     fig.tight_layout(rect=[0.01, 0.06, 1, 0.99])
 
     fname = out_dir / ("paper_handoff_composition_%s.png" % tag)
-    fig.savefig(fname, dpi=150, bbox_inches="tight")
-    fig.savefig(out_dir / ("paper_handoff_composition_%s.pdf" % tag),
-                dpi=300, bbox_inches="tight")
-    log.info("Wrote %s", fname)
+    save_figure(fig, fname, dpi=150, vector_dpi=300, bbox_inches="tight")
     plt.close(fig)
 
 

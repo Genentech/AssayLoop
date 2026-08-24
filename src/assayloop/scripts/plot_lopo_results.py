@@ -23,6 +23,7 @@ from pathlib import Path
 
 import numpy as np
 
+from assayloop.scripts._figure_io import save_figure
 from assayloop import config
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -61,7 +62,7 @@ def _eval_checkpoint_universe(ckpt_name, ckpt_file, eval_screens, universe, devi
     """Re-evaluate a checkpoint on screens with universe candidates + domain-adjusted NVR."""
     from assayloop.models.amortized_ranker import AmortizedRankerModel
     from assayloop.experiment.runner import RunConfig, run_one_screen
-    from assayloop.scripts.full_genome_table import _adj_nvr_from_run
+    from assayloop.scripts.full_genome_table import _adj_ef_from_run
     import torch
 
     ckpt_dir = Path(ckpt_name) if Path(ckpt_name).is_absolute() else config.OUTPUT_PATH / "rankers" / ckpt_name
@@ -85,7 +86,7 @@ def _eval_checkpoint_universe(ckpt_name, ckpt_file, eval_screens, universe, devi
         run_id = "%s-%02d-%s" % (sweep_id, i, screen.dataset_name)
         cached = runs_dir / run_id / "result.json"
         if cached.is_file():
-            adj = _adj_nvr_from_run(cached, set(screen.genes), universe_set,
+            adj = _adj_ef_from_run(cached, set(screen.genes), universe_set,
                                     sum(screen.hits), len(screen.genes), 1000)
             nvrs.append(adj)
         else:
@@ -95,7 +96,7 @@ def _eval_checkpoint_universe(ckpt_name, ckpt_file, eval_screens, universe, devi
             # Recompute adjusted NVR
             fp = runs_dir / run_id / "result.json"
             if fp.exists():
-                adj = _adj_nvr_from_run(fp, set(screen.genes), universe_set,
+                adj = _adj_ef_from_run(fp, set(screen.genes), universe_set,
                                         sum(screen.hits), len(screen.genes), 1000)
                 nvrs.append(adj)
             else:
@@ -117,7 +118,7 @@ def _fold_train_screens(fold):
 
 # ---- kNN baselines evaluated on the f2 universe (domain-adjusted NVR) ----
 # Both run the same 100x10 greedy AL rollout over the universe candidates as the
-# transformer, then score with adjusted_nvr_value (the full-genome-table metric).
+# transformer, then score with adjusted_ef_value (the full-genome-table metric).
 _KNN_TAU, _KNN_KAPPA = 0.1, 100.0
 
 
@@ -148,7 +149,7 @@ def _build_screen_knn_matrices(train_screens, universe):
 
 def _screen_knn_rollout(screen, universe, H, M, prior):
     """Nearest-SCREEN kNN (the table's baseline) rollout -> adjusted NVR."""
-    from assayloop.metrics.hits_auc import adjusted_nvr_value
+    from assayloop.metrics.hits_auc import adjusted_ef_value
     G = len(universe)
     lib = set(screen.genes)
     hit_of = {g: bool(h) for g, h in zip(screen.genes, screen.hits)}
@@ -188,13 +189,13 @@ def _screen_knn_rollout(screen, universe, H, M, prior):
             else:
                 n2 += 1
                 rev_idx.append(idx); rev_val.append(0.0)
-    return adjusted_nvr_value(hits, n1, n2, len(lib), sum(screen.hits), 1000)
+    return adjusted_ef_value(hits, n1, n2, len(lib), sum(screen.hits), 1000)
 
 
 def _knn_gene_rollout(screen, cand_names, emb, bias):
     """Nearest-GENE kNN over the model's learned embeddings (max cosine sim to
     observed hits; cold start = per-gene bias) rollout -> adjusted NVR."""
-    from assayloop.metrics.hits_auc import adjusted_nvr_value
+    from assayloop.metrics.hits_auc import adjusted_ef_value
     G = len(cand_names)
     lib = set(screen.genes)
     hit_of = {g: bool(h) for g, h in zip(screen.genes, screen.hits)}
@@ -218,7 +219,7 @@ def _knn_gene_rollout(screen, cand_names, emb, bias):
                     hit_embs.append(emb[idx])
             else:
                 n2 += 1
-    return adjusted_nvr_value(hits, n1, n2, len(screen.genes), sum(screen.hits), 1000)
+    return adjusted_ef_value(hits, n1, n2, len(screen.genes), sum(screen.hits), 1000)
 
 
 def _eval_knn_screen_universe(fold, eval_screens, universe):
@@ -377,8 +378,13 @@ def main() -> None:
         histories[fold] = rl_hist
 
     if not rows:
-        log.error("No LOPO folds found under %s", rankers)
-        return
+        # Exiting 0 here made "no LOPO runs on this machine" indistinguishable
+        # from "the figure was drawn", which is how a build pipeline ends up
+        # shipping a gallery with a figure quietly missing from it.
+        raise SystemExit(
+            f"No LOPO folds found under {rankers}. The figure needs one "
+            f"supervised and one RL ranker per fold; fetch or train them, or "
+            f"point ASSAYLOOP_OUTPUT at a tree that has them.")
 
     if args.universe:
         knn_cache_path.write_text(json.dumps(knn_cache, indent=2))
@@ -463,9 +469,7 @@ def main() -> None:
     ax1.axvline(x[-1] - 0.5, color="grey", ls=":", lw=0.8, alpha=0.6)
     fig1.tight_layout()
     fig1_path = out_dir / "lopo_bar_chart.png"
-    fig1.savefig(fig1_path, dpi=150)
-    fig1.savefig(out_dir / "lopo_bar_chart.pdf", bbox_inches="tight")
-    log.info("Wrote %s(.png/.pdf)", fig1_path)
+    save_figure(fig1, fig1_path, dpi=150, bbox_inches="tight")
 
     # ---- Figure 2: RL training curves ----
     n_folds = len(histories)

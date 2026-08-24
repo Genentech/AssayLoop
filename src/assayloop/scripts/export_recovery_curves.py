@@ -10,6 +10,12 @@ exactly as the table does:
   n_out_of_universe       gene not in the f2 universe (hallucinated / out-of-domain)
   cum_hits                in-library picks that are true hits
 
+The curves count genes that were *assayed*, which for most methods is every gene
+the run acquired. The finetuned-LLM rows are the exception: their harness kept
+reading a round's submission until it had 100 genes worth assaying and dropped
+the rest, so for those only the taken genes are counted. See
+:func:`_batches_from_jsonl`.
+
 Two files are written to output/analysis/:
   recovery_curves_by_screen.csv   one row per (method, screen, step)  [full detail]
   recovery_curves_mean.csv        one row per (method, step), averaged over screens
@@ -21,7 +27,6 @@ from __future__ import annotations
 import csv
 import json
 import logging
-import re
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -31,7 +36,8 @@ from assayloop import config
 from assayloop.tasks import load_screens
 from assayloop.scripts.full_genome_table import (
     METHODS, HANDOFF_METHODS, JSONL_HANDOFF_METHODS, RAW_SWEEP_METHODS,
-    LLM_METHODS, JSONL_METHODS, RUNS_DIR, SHARED_RUNS_DIR, _round_submitted,
+    LLM_METHODS, JSONL_METHODS, RUNS_DIR, SHARED_RUNS_DIR,
+    clean_label as _clean_label, resolve_name as _resolve_name,
 )
 from assayloop.scripts.results_index import (
     _load_all_sweeps, load_sweep_index, resolve_row, _find_run_result,
@@ -44,26 +50,6 @@ ANALYSIS_DIR = config.OUTPUT_PATH / "analysis"
 MIN_SCREEN_FREQ = 2
 BATCH_SIZE = 100
 SWEEP_TAG = f"fg-f{MIN_SCREEN_FREQ}"
-
-
-def _clean_label(lbl: str) -> str:
-    """Strip LaTeX markup from a table label to a plain-text method name."""
-    s = lbl
-    s = re.sub(r"\\cite\{[^}]*\}", "", s)
-    s = re.sub(r"\\text\w*\{([^}]*)\}", r"\1", s)
-    s = re.sub(r"\$[^$]*\$", "", s)          # drop math (e.g. NVR_terminal note)
-    s = s.replace(r"\quad", " ").replace(r"\hfill", " ")
-    s = s.replace("~", " ").replace("{}", "")
-    s = re.sub(r"\s*\[[^\]]*\]", "", s)      # drop [Kimi]/[Opus] disambiguators
-    s = re.sub(r"\s+", " ", s).strip()
-    return s
-
-
-def _resolve_name(clean: str, last_base: str | None) -> tuple[str, str | None]:
-    """Prepend the last base label to continuation rows ('+ ...' / '- ...')."""
-    if clean.startswith(("+", "-")) and last_base:
-        return f"{last_base} {clean}", last_base
-    return clean, clean
 
 
 def _classify_curve(gene_batches, lib, hitset, universe_set):
@@ -106,7 +92,53 @@ def _batches_from_result(fp: Path):
 
 
 def _batches_from_jsonl(js: dict):
-    return [_round_submitted(r) for r in js.get("round_genes", [])]
+    """The genes a finetuned-LLM run actually assayed, round by round.
+
+    Not the same as the round's ``submitted`` list. That harness walked the
+    submission in order and took the first 100 genes that were in the screen's
+    library and not already acquired, then stopped: everything after the cutoff,
+    and every out-of-library or repeated name before it, was never assayed.
+    Counting ``submitted`` therefore credits these methods with picks that cost
+    nothing and revealed nothing -- 2.0x the budget on the base model by round
+    ten -- and puts them on a different x axis from every other row.
+
+    ``new_hits`` + ``new_misses`` is the harness's own record of what it took,
+    so use that rather than re-deriving the cut here. It is never more than 100
+    genes, which is what makes the axis comparable again.
+    """
+    batches = []
+    for r in js.get("round_genes", []):
+        if not (isinstance(r, dict) and "new_hits" in r and "new_misses" in r):
+            step = r.get("step", "?") if isinstance(r, dict) else "?"
+            raise ValueError(
+                f"{js.get('dataset_name', '?')} round {step} records no "
+                "new_hits/new_misses, only what was submitted, so which genes "
+                "were assayed cannot be recovered from this file."
+            )
+        batches.append(list(r["new_hits"]) + list(r["new_misses"]))
+    return batches
+
+
+def _check_recorded_hits(method, js, batches, hitset):
+    """Cross-check a reconstructed curve against the run's own hit tally.
+
+    ``per_round`` was written by the harness that produced the batches, so its
+    final ``cum_hits`` counts the same thing this script is about to recount
+    from the screen ground truth. If the two disagree, the JSONL and the loaded
+    screen are not describing the same experiment, and nothing downstream would
+    catch it.
+    """
+    per_round = js.get("per_round") or []
+    recorded = per_round[-1].get("cum_hits") if per_round else None
+    if recorded is None:
+        return
+    got = sum(1 for b in batches for g in b if g in hitset)
+    if int(recorded) != got:
+        raise ValueError(
+            f"{method} / {js.get('dataset_name', '?')}: the run recorded "
+            f"{int(recorded)} cumulative hits, but its assayed genes score "
+            f"{got} against this screen's ground truth."
+        )
 
 
 def main():
@@ -225,7 +257,9 @@ def main():
                 s = screen_by_name.get(js.get("dataset_name", ""))
                 if s is None:
                     continue
-                emit(name, s, _batches_from_jsonl(js))
+                batches = _batches_from_jsonl(js)
+                _check_recorded_hits(name, js, batches, screen_info(s)[1])
+                emit(name, s, batches)
                 found += 1
         log.info("%-40s %3d screens", name, found)
 

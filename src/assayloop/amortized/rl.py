@@ -47,7 +47,7 @@ import torch
 import torch.distributed as dist
 
 from .. import config
-from ..metrics.hits_auc import adjusted_nvr_value, n_hits_vs_random_value
+from ..metrics.hits_auc import adjusted_ef_value, n_hits_vs_random_value
 from .data import GeneVocab, ScreenExample, build_examples
 from .model import RankerConfig, RankerNet
 from .warmstart import WarmStart, load_run_traces
@@ -845,7 +845,7 @@ def _rollout_metric(
     n1 = sum(1 for p in obs_pos if p < n_lib)
     n2 = len(obs_pos) - n1
     bud = (n_steps * batch_size) if adj_budget is None else adj_budget
-    adj = adjusted_nvr_value(hits_observed, n1, n2, n_lib, int(ex.total_hits), bud)
+    adj = adjusted_ef_value(hits_observed, n1, n2, n_lib, int(ex.total_hits), bud)
     return raw, adj
 
 

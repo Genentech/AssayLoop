@@ -1,0 +1,5 @@
+# Empty config to keep GitHub Pages happy. Jekyll is disabled via .nojekyll
+# so the site is served as static files. Set the site title for cases where
+# GitHub falls back to a default theme.
+title: "AssayLoop"
+description: "Biology-in-the-loop: Amortized Adaptive Hit Discovery in CRISPR Screens"

@@ -147,7 +147,7 @@ def n_hits_vs_random_value(n_hits: float, frac_budget: float, total_hits: int) -
     return float(n_hits / denom) if denom > 0 else 0.0
 
 
-def adjusted_nvr_value(
+def adjusted_ef_value(
     n_hits: float,
     n_in_lib: int,
     n_out_lib_in_universe: int,
@@ -155,7 +155,13 @@ def adjusted_nvr_value(
     total_hits: int,
     budget: int,
 ) -> float:
-    """Domain-adjusted NVR -- the paper's EF, from counts this repo already has.
+    """Domain-adjusted enrichment factor, from counts this repo already has.
+
+    Older revisions of this code called EF "NVR" (n-hits-vs-random), and the
+    name survives in two places the rename deliberately left alone: the
+    ``n_hits_vs_random`` field persisted in every ``result.json``, and the
+    ``nvr_*`` keys the RL trainer writes to ``history.json``. Both are on-disk
+    contracts with artifacts that are already published.
 
     This is a thin argument adapter over
     :func:`assaybench.benchmark.sequential.enrichment_factor_from_value`, which
@@ -172,7 +178,7 @@ def adjusted_nvr_value(
     ``budget - n_out_lib_in_universe`` and identical to
     :attr:`~assaybench.benchmark.sequential.AcquisitionCounts.effective_budget`.
 
-    Both :func:`assayloop.scripts.full_genome_table._adj_nvr_from_run` and the
+    Both :func:`assayloop.scripts.full_genome_table._adj_ef_from_run` and the
     RL evaluator call this, so the paper's headline number has one definition
     across the persisted-results path and the training path.
     """
@@ -330,5 +336,5 @@ __all__ = [
     "random_expected_auc",
     "random_expected_n_hits",
     "n_hits_vs_random_value",
-    "adjusted_nvr_value",
+    "adjusted_ef_value",
 ]

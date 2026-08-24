@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Pathway diversity — AssayLoop</title>
+<meta name="description" content="What biology each method actually goes after: effective Reactome pathway coverage at batch, screen, and dataset scope, and whether breadth costs enrichment."/>
+<link rel="stylesheet" href="assets/css/site.css?v=b5266bb0"/>
+<script src="https://cdn.plot.ly/plotly-2.32.0.min.js" charset="utf-8"></script>
+</head>
+<body>
+<div id="site-header"></div>
+
+<main>
+  <div class="container-wide">
+    <p class="kicker">Interactive</p>
+    <h1>What biology does each method go after?</h1>
+    <p class="lede">
+      Two methods can recover the same number of hits from completely different parts of the cell.
+      Effective Pathways counts how much distinct Reactome biology a method's picks span &mdash; at
+      the scale of a single 100-gene batch, a whole screen, and the full test set. The vocabulary
+      is Reactome's 186 <strong>level-2 groups</strong> (Innate Immune System, Cell Cycle Mitotic,
+      Signaling by Receptor Tyrosine Kinases, &hellip;), so the numbers read as counts of named
+      biological programs. For reference, a uniform draw from the acquisition universe scores
+      <strong>21.8 / 56.4 / 82.1</strong> at the three scopes.
+    </p>
+
+    <h2>Effective pathways by scope</h2>
+    <div class="controls" id="controls">
+      <div class="control">
+        <label for="scope">Scope</label>
+        <select id="scope">
+          <option value="ep_b">EP-B &mdash; per batch (M = 30)</option>
+          <option value="ep_s">EP-S &mdash; per screen (M = 200)</option>
+          <option value="ep_d">EP-D &mdash; whole test set (M = 6000)</option>
+          <option value="vendi">Vendi score &mdash; embedding diversity</option>
+        </select>
+      </div>
+      <div class="control">
+        <label for="family">Family filter</label>
+        <select id="family"><option value="">All families</option></select>
+      </div>
+      <div class="control">
+        <label for="ablations">Ablations</label>
+        <select id="ablations">
+          <option value="hide">Hide ablation rows</option>
+          <option value="show">Show ablation rows</option>
+        </select>
+      </div>
+      <div class="control">
+        <label for="order">Order</label>
+        <select id="order">
+          <option value="value">By value</option>
+          <option value="table">Paper's table order</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="plot plot-tall" id="bars"></div>
+    <p class="figure-caption" id="bars-caption"></p>
+
+    <h2>How the metric works</h2>
+    <ul class="bullets">
+      <li><strong>Level-2 groups, not leaf sets.</strong> The GMT's 2012 leaf pathway sets are too
+        fine to count with: over 10,480 annotated genes, thirty genes drawn one pathway each
+        essentially never collide, so EP-B was pinned just under its own reference count for every
+        method (24.5&ndash;27.6 out of 30) and measured "how close to M did you get" rather than how
+        much biology the batch touched. Each leaf is therefore lifted to its Reactome level-2 group
+        &mdash; the direct children of the 29 top-level roots, the same tier the sunbursts' outer
+        ring draws. 185 are populated by this GMT, plus one bucket for the 36 leaves with no
+        hierarchy entry, for 186 in all.</li>
+      <li><strong>One group per gene.</strong> A gene in <em>k</em> groups contributes a
+        single sampled group, not <em>1/k</em> to each. Fractional weights invert the batch-scope
+        ranking &mdash; they reward picking promiscuous, heavily-annotated genes.</li>
+      <li><strong>Effective count, not raw count.</strong> The score is
+        <code>exp(H)</code> for Shannon entropy <em>H</em> over that distribution, so
+        thirty picks spread evenly over thirty groups scores thirty, and thirty picks that are
+        twenty-nine in one group plus one stray scores close to one.</li>
+      <li><strong>Rarefaction.</strong> Entropy grows with sample size, so every method is scored on
+        the same number of annotated genes per unit &mdash; <code id="m-batch">&mdash;</code> per
+        batch, <code id="m-screen">&mdash;</code> per screen,
+        <code id="m-dataset">&mdash;</code> across the dataset. Without this, a method that simply
+        submits more valid genes would look more diverse.</li>
+      <li><strong>Truncated batches are dropped.</strong> A batch that came up short is a run
+        artifact, not a narrow batch. A <em>full</em> batch whose genes happen not to be in Reactome
+        is kept &mdash; that is a real property of the method's picks.</li>
+    </ul>
+
+    <h2>What that looks like</h2>
+    <p>
+      The same picks, drawn rather than counted. Each sunburst is one method's proposed genes laid
+      out over Reactome: the inner ring is the eight largest top-level categories plus everything
+      else, the outer ring the second tier the metric above counts over. A colour means the same
+      category in every panel. The number at the centre is the effective pathway count &mdash; the
+      number of equally-weighted groups that would give the same spread.
+    </p>
+    <div class="controls">
+      <div class="control">
+        <label for="sunburst-method">Show</label>
+        <select id="sunburst-method"></select>
+      </div>
+    </div>
+    <div class="swatch-key" id="sunburst-legend"></div>
+    <div class="plot" id="sunburst"></div>
+    <p class="figure-caption" id="sunburst-caption"></p>
+    <p class="figure-caption">
+      The frontier LLMs and the learned policies are pulling from visibly different parts of the
+      cell. <a href="analysis.html#pathways">The analysis page has the same comparison as a
+      heatmap of over- and under-representation &rarr;</a>
+    </p>
+
+    <h2>Does breadth cost enrichment?</h2>
+    <p>
+      One last check, not in the paper. The obvious worry about optimising for hit rate is that a
+      policy learns to mine one pathway. Plot the enrichment factor against pathway coverage and see
+      whether that happened. Each point is a method; hover for its name.
+    </p>
+    <div class="controls">
+      <div class="control">
+        <label for="scatter-scope">Diversity axis</label>
+        <select id="scatter-scope">
+          <option value="ep_s">EP-S &mdash; per screen</option>
+          <option value="ep_b">EP-B &mdash; per batch</option>
+          <option value="ep_d">EP-D &mdash; whole test set</option>
+          <option value="vendi">Vendi score</option>
+        </select>
+      </div>
+    </div>
+    <div class="plot" id="scatter"></div>
+    <p class="figure-caption" id="scatter-caption"></p>
+
+    <p class="footnote" id="floor">
+      A dash in place of a number is a refusal to score, not a zero: a method whose picks are mostly
+      unannotated cannot supply enough genes to calculate the metric.
+    </p>
+  </div>
+</main>
+
+<div id="site-footer"></div>
+<script src="assets/js/site.js?v=b1729676" data-build="8787e112"></script>
+<script src="assets/js/diversity.js?v=58cc710b"></script>
+<script src="assets/js/sunburst.js?v=21ac3211"></script>
+</body>
+</html>

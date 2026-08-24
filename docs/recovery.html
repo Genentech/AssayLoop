@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Recovery curves — AssayLoop</title>
+<meta name="description" content="Interactive recovery curves: watch hits accumulate round by round for any subset of methods, averaged over the held-out screens or broken out screen by screen."/>
+<link rel="stylesheet" href="assets/css/site.css?v=b5266bb0"/>
+<script src="https://cdn.plot.ly/plotly-2.32.0.min.js" charset="utf-8"></script>
+</head>
+<body>
+<div id="site-header"></div>
+
+<main>
+  <div class="container-wide">
+    <p class="kicker">Interactive</p>
+    <h1>Recovery curves</h1>
+    <p class="lede">
+      Ten rounds, one hundred genes each. The whole question is how fast the hits come in &mdash;
+      and, for the methods that pick genes the screen never assayed, how much of the budget is
+      spent outside the library at all. Pick any set of methods and watch both.
+    </p>
+
+    <!-- Filled by recovery.js from the budget_overshoot field build_data.py
+         records. Above the chart because it says how to read the x axis, and
+         hidden when nothing overshoots, so a clean rebuild does not leave an
+         empty box behind. -->
+    <div class="callout note" id="overbudget-note" hidden></div>
+
+    <div class="controls" id="controls">
+      <div class="control">
+        <label for="metric">Y axis</label>
+        <select id="metric">
+          <option value="frac_hits">Fraction of hits recovered</option>
+          <option value="cum_hits">Cumulative hits found</option>
+          <option value="in_universe_not_lib">Picks outside the screen's library</option>
+        </select>
+      </div>
+      <div class="control">
+        <label for="view">View</label>
+        <select id="view">
+          <option value="mean">Mean over all screens</option>
+          <option value="screen">One screen at a time</option>
+        </select>
+      </div>
+      <div class="control" id="screen-control" hidden>
+        <label for="screen">Screen</label>
+        <select id="screen"></select>
+      </div>
+      <div class="control">
+        <label for="band">Error band</label>
+        <select id="band">
+          <option value="sem">Show &plusmn;1 SEM</option>
+          <option value="none">Lines only</option>
+        </select>
+      </div>
+      <div class="control">
+        <label for="family">Family filter</label>
+        <select id="family"><option value="">All families</option></select>
+      </div>
+    </div>
+
+    <div class="controls">
+      <div class="control" style="flex: 1;">
+        <label for="methods">Methods (ctrl/cmd-click for several)</label>
+        <select id="methods" multiple size="10"></select>
+      </div>
+      <div class="control">
+        <label>&nbsp;</label>
+        <button class="button" id="preset-headline">Headline comparison</button>
+        <button class="button secondary" id="preset-families" style="margin-top: 6px;">Best of each family</button>
+        <button class="button secondary" id="preset-clear" style="margin-top: 6px;">Clear</button>
+      </div>
+    </div>
+
+    <div class="plot plot-tall" id="plot"></div>
+    <p class="figure-caption" id="caption"></p>
+
+    <h2>What to look for</h2>
+    <ul class="bullets">
+      <li><strong>The early rounds are where the handoff pays.</strong> Compare
+        <em>Gemini-3.1-pro</em> against <em>AssayFormer + BPMF + GRPO</em> over the first
+        two or three rounds, then against
+        <em>Gemini-3.1-Pro &rarr; AssayFormer</em> over all ten. The LLM starts better and the
+        learned policy finishes better; the handoff is an attempt to have both.</li>
+      <li><strong>Switch the Y axis to "picks outside the screen's library."</strong> This is the
+        cost that the enrichment factor alone hides: a method proposing real genes that this screen
+        never assayed spends real budget on them and can never find a hit there. It is the part of
+        the <a href="results.html">Shortfall column</a> that comes from real genes, unrolled over
+        rounds. The three finetuned Qwen rows sit at zero here by construction, not by virtue:
+        their harness skipped a name it could not assay and read further down the model's list
+        instead, so those picks cost nothing. What they cost shows up at the other end of the
+        curve, which stops short of 1,000 genes when the list runs out first.</li>
+      <li><strong>Switch to one screen at a time.</strong> The mean curve is smooth; the individual
+        screens are not. Some screens are easy for everything and some separate the methods
+        sharply.</li>
+    </ul>
+  </div>
+</main>
+
+<div id="site-footer"></div>
+<script src="assets/js/site.js?v=b1729676" data-build="8787e112"></script>
+<script src="assets/js/recovery.js?v=ef971927"></script>
+</body>
+</html>

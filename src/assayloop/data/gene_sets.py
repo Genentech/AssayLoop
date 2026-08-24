@@ -114,6 +114,32 @@ def _resolve_gmt(source: str) -> Path:
     )
 
 
+def reactome_gmt_path() -> Path:
+    """Path of ``ReactomePathways.gmt``, or raise saying how to fetch it.
+
+    Reactome is not in the assaybench asset registry -- ``fetch_gene_sets.sh``
+    is the only source -- so this skips :func:`_resolve_gmt`'s asset fallback
+    and looks only in the local gene-set directory.
+
+    It raises for the same reason :func:`load_default_gene_sets` does. Every
+    caller is computing a pathway statistic, and an absent GMT yields an *empty*
+    membership rather than an error: the Effective Pathways columns come out as
+    dashes and the sunbursts come out blank, which reads as a real result about
+    the methods instead of a missing download.
+    """
+    root = Path(config.GENE_SETS_PATH)
+    p = root / "ReactomePathways.gmt"
+    if p.is_file():
+        return p
+    raise MissingGeneSets(
+        f"Reactome pathway GMT not found at {p}. It is required for the "
+        "Effective Pathways columns (EP-B/EP-S/EP-D) and the pathway "
+        "sunbursts, and it is not an assaybench asset.\n"
+        "  Fetch it: scripts/fetch_gene_sets.sh\n"
+        "  Or set ASSAYLOOP_GENE_SETS to a directory containing it."
+    )
+
+
 _DEFAULT_CACHE: dict[str, GeneSetMembership] = {}
 
 
@@ -133,4 +159,5 @@ def load_default_gene_sets(source: str | None = None) -> GeneSetMembership:
     return _DEFAULT_CACHE[key]
 
 
-__all__ = ["GeneSetMembership", "MissingGeneSets", "load_default_gene_sets"]
+__all__ = ["GeneSetMembership", "MissingGeneSets", "load_default_gene_sets",
+           "reactome_gmt_path"]

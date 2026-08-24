@@ -33,6 +33,34 @@ def _pick_device(device: str | None) -> torch.device:
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
+def _resolve_ckpt(ckpt: Path, ckpt_file: str) -> Path:
+    """The requested weights file, or an error that says what is there instead.
+
+    Deliberately not a fallback: a directory holding only ``model_last.pt`` is
+    not a directory holding ``model.pt``, and loading the final epoch when the
+    caller asked for the best-on-validation one would change a reported number
+    without saying so. But the two names differ by a suffix and mean different
+    things, and the released checkpoint on HuggingFace ships only the second, so
+    the bare ``FileNotFoundError`` torch raises is a bad first experience. Name
+    the alternatives and let the caller choose.
+    """
+    path = ckpt / ckpt_file
+    if path.exists():
+        return path
+    others = sorted(p.name for p in ckpt.glob("*.pt"))
+    raise FileNotFoundError(
+        f"{path} does not exist. " + (
+            f"This checkpoint directory holds {', '.join(others)} -- pass "
+            f"ckpt_file='{others[0]}' if that is the one you want. model.pt is "
+            "the best-on-validation epoch and model_last.pt the final one; the "
+            "paper's AssayLoop rows, and the released Genentech/assayformer "
+            "checkpoint, use model_last.pt."
+            if others else
+            f"There are no .pt files in {ckpt} at all."
+        )
+    )
+
+
 class AmortizedRankerModel(Model):
     """Score candidates with a trained context-conditioned ranker.
 
@@ -42,6 +70,10 @@ class AmortizedRankerModel(Model):
     Args:
         checkpoint: path to a directory containing ``model.pt``, ``vocab.json``,
             ``config.json`` (as written by ``amortized.train``).
+        ckpt_file: which weights file in that directory to load. ``model.pt`` is
+            the best-on-validation epoch, ``model_last.pt`` the final one; the
+            paper's AssayLoop rows and the released ``Genentech/assayformer``
+            checkpoint use ``model_last.pt``, which has to be asked for.
         net / vocab / embedder: in-memory alternative to ``checkpoint``.
         desc_emb_by_name: optional ``{dataset_name: vector}`` to avoid
             recomputing description embeddings during evaluation.
@@ -83,7 +115,8 @@ class AmortizedRankerModel(Model):
             arch = cfg_d["arch"]
             self.vocab = GeneVocab.load(ckpt / "vocab.json")
             self.net = RankerNet(RankerConfig(**arch))
-            state = torch.load(ckpt / ckpt_file, map_location=self.device)
+            state = torch.load(_resolve_ckpt(ckpt, ckpt_file),
+                               map_location=self.device)
             self.net.load_state_dict(state)
             self._text_backend = cfg_d.get("text_backend", "auto")
             self._text_model = cfg_d.get("text_model")

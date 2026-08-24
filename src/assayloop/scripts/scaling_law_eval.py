@@ -5,7 +5,7 @@ to the **f2 universe** (genes appearing in >=2 ``public`` screens), exactly as t
 paper table does, and report:
 
   - ``nvr_at_10`` - the domain-adjusted NVR at a 1000-gene budget (batch 100 x 10
-    steps), computed with the shared ``adjusted_nvr_value`` helper.  This is the
+    steps), computed with the shared ``adjusted_ef_value`` helper.  This is the
     number the scaling curves plot; it is identical to the paper table's metric.
   - ``mean_recall_curve`` / ``budget_to_50_recall`` - cumulative in-library recall
     per step and the fraction of the **f2 universe** screened to reach 50% recall.
@@ -35,7 +35,7 @@ from pathlib import Path
 import numpy as np
 
 from assayloop import config
-from assayloop.metrics.hits_auc import adjusted_nvr_value
+from assayloop.metrics.hits_auc import adjusted_ef_value
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("scaling_eval")
@@ -178,7 +178,7 @@ def _metrics_from_traj(trajs, *, k_list, thresholds, batch_size,
             if k > nsteps:
                 continue          # cached rollout doesn't reach this budget
             idx = k - 1
-            per_k[k].append(adjusted_nvr_value(hits[idx], n1[idx], n2[idx],
+            per_k[k].append(adjusted_ef_value(hits[idx], n1[idx], n2[idx],
                                                D, H, k * batch_size))
         # Recall is over *reachable* hits (in the f2 universe), so exhausting the
         # universe gives 100% recall for every screen -> budget→recall is fully

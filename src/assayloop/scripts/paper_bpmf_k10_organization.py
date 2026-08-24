@@ -23,6 +23,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
+from assayloop.scripts._figure_io import save_figure
 from assayloop import config
 from assayloop.scripts._bpmf_embedding import (
     load_full_bpmf, load_pathway_labels, run_pca, run_umap_cosine, short,
@@ -264,10 +265,8 @@ def main():
 
     from assayloop.tasks import load_screens
 
+    # load_full_bpmf raises with the glob it searched when the fit is absent.
     V, genes = load_full_bpmf(args.k)
-    if V is None:
-        log.error("Full-data BPMF K=%d not found", args.k)
-        return
     gi = {g: i for i, g in enumerate(genes)}
     train = load_screens(target_set="public_train")
     pub = load_screens(target_set="public")
@@ -376,9 +375,7 @@ def main():
     tag = ("kmeans%d" % args.n_clusters if args.cluster_method == "kmeans"
            else args.cluster_method)
     out = ANALYSIS_DIR / ("paper_bpmf_k%d_organization_%s.png" % (args.k, tag))
-    fig.savefig(out, bbox_inches="tight")
-    fig.savefig(str(out).replace(".png", ".pdf"), bbox_inches="tight")
-    log.info("Wrote %s", out)
+    save_figure(fig, out, bbox_inches="tight")
     plt.close(fig)
 
 

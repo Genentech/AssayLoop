@@ -23,10 +23,10 @@ from collections import defaultdict
 from pathlib import Path
 
 import yaml
+from assaybench import load_screens
 from assaybench.data.screen_sets import manifest_path
 
 from assayloop import config
-from assayloop.tasks.screen_sets import _load_public_screens
 
 SLUG_MAP = {
     "Fitness / Proliferation / Viability": "fitness",
@@ -55,8 +55,7 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
 
     print("Loading all public screens (train + validation + test)...")
-    all_screens = _load_public_screens(
-        wanted=None,
+    all_screens = load_screens(
         split_field="yearfold0",
         split_value=["train", "validation", "test"],
         strict=False,

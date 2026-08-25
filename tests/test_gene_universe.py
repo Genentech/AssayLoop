@@ -6,6 +6,11 @@ and a fourth copy in ``cli.py`` silently omitted the frequency filter -- so
 ``assayloop run --full-genome`` handed a ranker 22,174 candidates while every
 number in the paper was scored against 21,147. These tests pin the semantics
 the four sites now share.
+
+The helper itself now lives in ``assaybench`` (with its own copy of these
+cases in ``AssayBench/tests/test_screens.py``); what this file additionally
+covers is that the re-export through ``assayloop.tasks`` still resolves, which
+is the import path every script, doc and model card in this repo uses.
 """
 
 from __future__ import annotations
@@ -60,3 +65,14 @@ def test_higher_cutoff_is_a_subset_of_a_lower_one():
 
 def test_empty_input_is_an_empty_pool():
     assert gene_universe([]) == []
+
+
+def test_reexports_resolve_to_the_assaybench_definitions():
+    """``assayloop.tasks`` must keep re-exporting what moved to assaybench."""
+    import assaybench
+
+    from assayloop.tasks import ScreenRecord, gene_universe, screen_from_example
+
+    assert gene_universe is assaybench.gene_universe
+    assert ScreenRecord is assaybench.ScreenRecord
+    assert screen_from_example is assaybench.screen_from_example

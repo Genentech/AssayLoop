@@ -1,9 +1,14 @@
 """The sequential-design task and the screen sets it runs on.
 
-``gene_batch`` is generic -- it would work against any corpus that yields
-``ScreenRecord``s -- while ``screen_sets`` is specific to this repository's
-committed manifests. They are separate modules so the generic half can move
-into the ``assaybench`` package without dragging the manifests with it.
+``ScreenRecord``, the loader that produces one, and ``gene_universe`` now live
+in ``assaybench`` -- they describe the benchmark, so ``pip install assaybench``
+is enough to score a policy the way the paper does. ``gene_batch`` holds the
+``Task`` implementation, and ``screen_sets`` holds this repository's short
+names for the benchmark's sets (``public``, ``public_train``, ...).
+
+Everything the two moved modules used to export is re-exported here, so
+``from assayloop.tasks import ScreenRecord, load_screens, gene_universe``
+keeps working unchanged.
 """
 
 from .gene_batch import (

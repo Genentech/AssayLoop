@@ -4,147 +4,24 @@ One ``Task`` = one CRISPR screen. Candidates are gene symbols. At each round
 the acquisition picks ``batch_size`` (default 100) genes and ``reveal()``
 returns the ground-truth ``hit`` flag and ``relevance_score`` for each.
 
-This module is deliberately screen-set agnostic: it turns an AssayBench row
-into a :class:`ScreenRecord` and wraps a ``ScreenRecord`` in a ``Task``.
-Choosing *which* screens to run on lives in :mod:`assayloop.tasks.screen_sets`.
+This module wraps a :class:`~assaybench.ScreenRecord` in a ``Task``. The record
+itself, and the loaders that produce one, live in :mod:`assaybench.data.screens`
+-- what a benchmark screen *is* is part of the benchmark. Choosing *which*
+screens to run on, under this repository's names for them, lives in
+:mod:`assayloop.tasks.screen_sets`.
 """
 
 from __future__ import annotations
 
 import logging
 import random
-from dataclasses import dataclass, field
 from typing import Any
 
 from assaybench.core.task import Task
 from assaybench.core.types import Observation
+from assaybench.data.screens import ScreenRecord, screen_from_example
 
 log = logging.getLogger("assayloop.tasks.gene_batch")
-
-
-# ---------------------------------------------------------------------------
-# ScreenRecord — one AssayBench row, normalised into the shape the loop wants.
-# ---------------------------------------------------------------------------
-
-
-@dataclass
-class ScreenRecord:
-    dataset_name: str
-    split: str
-    organism: str
-    gene_symbol_convention: str  # e.g. "HGNC", "MGI"
-    phenotype: str
-    cell_line: str
-    cell_type: str
-    library_type: str
-    library_methodology: str
-    direction_str: str
-    condition_clause: str
-    num_genes: int
-    genes: list[str]
-    relevance_scores: list[float]
-    hits: list[bool]
-    question: str = ""             # pre-rendered ranking prompt
-    description: str = ""
-    contrast_label: str = ""
-    reverse: bool = False
-    cleaned_phenotype: str = ""
-    # Continuous relevance score for EVERY gene (not just hits): non-hits,
-    # which carry a masked ``relevance_score`` of 0, are filled with their
-    # ``combined_scores`` value. This is the MSE regression target for the
-    # amortized ranker. Empty when the source row lacked ``combined_scores``
-    # (falls back to ``relevance_scores`` in that case — see
-    # ``screen_from_example``).
-    unmasked_relevance_scores: list[float] = field(default_factory=list)
-
-    @property
-    def total_hits(self) -> int:
-        return int(sum(1 for h in self.hits if h))
-
-    @property
-    def gene_to_index(self) -> dict[str, int]:
-        return {g: i for i, g in enumerate(self.genes)}
-
-    def context(self) -> dict[str, Any]:
-        return {
-            "dataset_name": self.dataset_name,
-            "split": self.split,
-            "organism": self.organism,
-            "gene_symbol_convention": self.gene_symbol_convention,
-            "phenotype": self.phenotype,
-            "cell_line": self.cell_line,
-            "cell_type": self.cell_type,
-            "library_type": self.library_type,
-            "library_methodology": self.library_methodology,
-            "direction_str": self.direction_str,
-            "condition_clause": self.condition_clause,
-            "num_genes": self.num_genes,
-            "total_hits": self.total_hits,
-            "description": self.description,
-            "contrast_label": self.contrast_label,
-            "question": self.question,
-            "cleaned_phenotype": self.cleaned_phenotype,
-        }
-
-
-def screen_from_example(example: dict[str, Any]) -> ScreenRecord:
-    """Normalise one AssayBench example dict into a ScreenRecord."""
-    genes = list(example.get("relevance_genes") or [])
-    rs = list(example.get("relevance_scores") or [])
-    hits = list(example.get("hit") or [])
-    # Pad/truncate parallel arrays defensively (some legacy rows have
-    # shorter hit arrays than relevance arrays).
-    n = len(genes)
-    rs = rs + [0.0] * (n - len(rs)) if len(rs) < n else rs[:n]
-    hits = hits + [False] * (n - len(hits)) if len(hits) < n else hits[:n]
-    hits = [bool(h) for h in hits]
-
-    org = example.get("organism") or "Homo sapiens"
-    conv = example.get("gene_symbol_convention") or (
-        "HGNC" if "sapiens" in str(org).lower() or not org else "MGI"
-    )
-
-    # Unmasked relevance scores: fill the masked (==0) non-hit entries with
-    # the gene's ``combined_scores`` value so every gene has a continuous
-    # target (mirrors assaybench dataset.py). Falls back to the masked
-    # ``relevance_scores`` when the source row has no ``combined_scores``.
-    combined = example.get("combined_scores")
-    if combined is not None:
-        combined = list(combined)
-        combined = (
-            combined + [0.0] * (n - len(combined))
-            if len(combined) < n else combined[:n]
-        )
-        unmasked = [
-            float(combined[i]) if float(rs[i]) == 0.0 else float(rs[i])
-            for i in range(n)
-        ]
-    else:
-        unmasked = [float(x) for x in rs]
-
-    return ScreenRecord(
-        dataset_name=example.get("dataset_name") or example.get("screen_name", "unknown"),
-        split=example.get("split", ""),
-        organism=org,
-        gene_symbol_convention=conv,
-        phenotype=example.get("phenotype", "") or "",
-        cell_line=example.get("cell_line", "") or "",
-        cell_type=example.get("cell_type", "") or "",
-        library_type=example.get("library_type", "") or "",
-        library_methodology=example.get("library_methodology", "") or "",
-        direction_str=example.get("direction_str", "") or "",
-        condition_clause=example.get("condition_clause", "") or "",
-        num_genes=int(example.get("num_genes", n) or n),
-        genes=genes,
-        relevance_scores=[float(x) for x in rs],
-        hits=hits,
-        unmasked_relevance_scores=unmasked,
-        question=example.get("question", "") or "",
-        description=example.get("description", "") or "",
-        contrast_label=example.get("contrast_label", "") or "",
-        reverse=bool(example.get("reverse", False)),
-        cleaned_phenotype=example.get("cleaned_phenotype", "") or "",
-    )
 
 
 # ---------------------------------------------------------------------------

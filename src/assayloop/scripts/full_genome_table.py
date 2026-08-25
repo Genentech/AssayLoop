@@ -40,7 +40,7 @@ from assayloop import config
 from assayloop.experiment.runner import RunConfig, make_model, run_one_screen
 from assayloop.metrics.effective_pathways import (
     M_BATCH, M_DATASET, M_SCREEN, RETENTION, effective_pathways)
-from assayloop.tasks import load_screens
+from assayloop.tasks import gene_universe, load_screens
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("full_genome_table")
@@ -800,11 +800,7 @@ def main():
     all_genes = {g for s in screens for g in s.genes}
 
     if args.min_screen_freq > 0:
-        gene_freq = Counter()
-        for s in screens:
-            for g in set(s.genes):
-                gene_freq[g] += 1
-        universe = sorted(g for g in all_genes if gene_freq[g] >= args.min_screen_freq)
+        universe = gene_universe(screens, min_screen_freq=args.min_screen_freq)
         n_dropped = len(all_genes) - len(universe)
         log.info("Filtered universe: %d genes (dropped %d with freq < %d), %d screens",
                  len(universe), n_dropped, args.min_screen_freq, len(screens))

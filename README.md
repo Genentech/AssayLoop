@@ -132,8 +132,10 @@ shortfall(picked, screen.genes)                             # SF     0.0    budg
 percent_essential(picked, screen.genes, hits)               # %ess   0.444  DepMap common-essential
 ```
 
-A uniform-random policy scores EF 1.0. Pass `universe=` to score against the full-genome
-pool the paper's table uses rather than one screen's library.
+A uniform-random policy scores EF 1.0. To score against the full-genome pool the paper's
+table uses rather than one screen's library, pass `universe=gene_universe(screens)` — the
+union of the twenty libraries kept to genes measured in at least two of them, 21,147 genes.
+The same call feeds `universe_genes=` on a task, which is what `--full-genome` does.
 
 ## Your own method
 

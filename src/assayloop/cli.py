@@ -217,7 +217,8 @@ def run(
     no_persist: bool = typer.Option(False, "--no-persist"),
     sweep_id: Optional[str] = typer.Option(None, "--sweep-id", help="Fixed sweep ID (required for --resume to match prior run directories)."),
     resume: bool = typer.Option(False, "--resume", help="Skip screens whose result.json already exists from a prior run."),
-    full_genome: bool = typer.Option(False, "--full-genome", help="Expand candidate pool to the union of all genes across all screens (fair comparison with open-vocab LLMs)."),
+    full_genome: bool = typer.Option(False, "--full-genome", help="Expand candidate pool to the union of genes across all screens in the set, filtered by --min-screen-freq (fair comparison with open-vocab LLMs)."),
+    min_screen_freq: int = typer.Option(2, "--min-screen-freq", help="With --full-genome, keep only genes measured in at least this many screens. The default 2 is the paper's f2 universe (21,147 genes for --screen-set public); 0 keeps the plain union (22,174), which admits pseudogenes and per-library assembly artefacts."),
     verbose: bool = typer.Option(True),
 ):
     """Run a single (model, acq) configuration across the resolved screens."""
@@ -261,10 +262,13 @@ def run(
 
     universe = None
     if full_genome:
-        from .tasks import load_screens as _load_screens
+        from .tasks import gene_universe, load_screens as _load_screens
         all_screens = _load_screens(target_set=screen_set, dataset_names=_csv(screen) or None)
-        universe = sorted({g for s in all_screens for g in s.genes})
-        console.print(f"[cyan]full-genome[/cyan]: {len(universe)} genes in candidate universe")
+        universe = gene_universe(all_screens, min_screen_freq=min_screen_freq)
+        console.print(
+            f"[cyan]full-genome[/cyan]: {len(universe)} genes in candidate "
+            f"universe (freq >= {min_screen_freq})"
+        )
 
     cfg = RunConfig(
         screen_set=screen_set,

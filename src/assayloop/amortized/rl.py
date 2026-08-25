@@ -1131,13 +1131,9 @@ def run_rl_training(
         full_genome = True
     universe_genes = None
     if full_genome:
-        from collections import Counter
-        all_screens_for_universe = load_screens(target_set="public")
-        gene_freq = Counter()
-        for s in all_screens_for_universe:
-            for g in set(s.genes):
-                gene_freq[g] += 1
-        universe_genes = sorted(g for g in gene_freq if gene_freq[g] >= 2)
+        from ..tasks import gene_universe
+        universe_genes = gene_universe(load_screens(target_set="public"),
+                                       min_screen_freq=2)
         log.info("full_genome: universe of %d genes (freq >= 2)", len(universe_genes))
 
     if from_scratch:

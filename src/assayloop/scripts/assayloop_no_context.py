@@ -36,7 +36,6 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-from collections import Counter
 
 import numpy as np
 
@@ -47,7 +46,7 @@ from assayloop.amortized.warmstart import load_run_traces
 from assayloop.experiment.runner import RunConfig, run_one_screen
 from assayloop.scripts.full_genome_table import (
     _adj_nauc_from_run, _adj_ef_from_run)
-from assayloop.tasks import load_screens
+from assayloop.tasks import gene_universe, load_screens
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("assayloop_no_context")
@@ -66,16 +65,6 @@ SWEEP_BLIND = "sweep-fg-f2-fg-assayloop-noctx"      # this script
 SWEEP_FULL = "sweep-fg-f2-fg-handoff-gemini-s19-n3"  # the table's AssayLoop row
 BLIND_LLM_PREFIX = "sweep-cd32999e-"                # Gemini, hit labels stripped
 NOCTX_SWEEP = "sweep-fg-f2-fg-assayformer-noctx"    # AssayFormer's opening ranking
-
-
-def _universe(screens) -> list[str]:
-    """The f2 universe: genes appearing in >= 2 test screens (drops pseudogenes)."""
-    freq = Counter()
-    for s in screens:
-        for g in set(s.genes):
-            freq[g] += 1
-    return sorted(g for g in {g for s in screens for g in s.genes}
-                  if freq[g] >= MIN_SCREEN_FREQ)
 
 
 def _noctx_ranking(index: int, name: str) -> list[str]:
@@ -102,7 +91,7 @@ def main():
     args = ap.parse_args()
 
     screens = load_screens(target_set="public")
-    universe = _universe(screens)
+    universe = gene_universe(screens, min_screen_freq=MIN_SCREEN_FREQ)
     universe_set = set(universe)
     log.info("f2 universe: %d genes, %d screens", len(universe), len(screens))
 

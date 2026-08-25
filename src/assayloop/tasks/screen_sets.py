@@ -17,6 +17,7 @@ quietly handing back public screens under an internal set's name.
 from __future__ import annotations
 
 import logging
+from collections import Counter
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -388,8 +389,49 @@ def load_screens(
     )
 
 
+def gene_universe(
+    screens: Iterable[ScreenRecord], min_screen_freq: int = 2
+) -> list[str]:
+    """The candidate pool a full-genome run acquires from.
+
+    A single screen's library is the wrong pool to compare an open-vocabulary
+    policy against: an LLM names real genes that this particular library did
+    not happen to measure, and charging those as misses measures the library,
+    not the biology. So full-genome runs acquire from the union of the screens'
+    libraries instead, and EF forgives the picks that land outside the one
+    screen being scored.
+
+    The union alone is too permissive. A gene measured in exactly one of twenty
+    libraries is usually a pseudogene or an assembly artefact of that library,
+    and leaving those in inflates the pool with candidates no method could
+    reasonably be expected to know about. ``min_screen_freq`` drops them.
+
+    ``min_screen_freq=2`` over the public 20-screen set gives the **f2
+    universe**, 21,147 genes -- the pool every number in the paper is scored
+    against. ``0`` disables the filter and returns the plain union, 22,174.
+
+    Args:
+        screens: The screens whose libraries form the pool. For the paper's
+            setting this is ``load_screens(target_set="public")``.
+        min_screen_freq: Keep a gene only if it appears in at least this many
+            of ``screens``. ``0`` or ``1`` keeps everything.
+
+    Returns:
+        The pool, sorted, suitable for ``universe_genes=`` on a task or
+        ``universe=`` on :func:`assaybench.enrichment_factor`.
+    """
+    freq: Counter[str] = Counter()
+    for s in screens:
+        # set() per screen: a library with a duplicated symbol must not count
+        # twice toward that gene's screen frequency.
+        for g in set(s.genes):
+            freq[g] += 1
+    return sorted(g for g, n in freq.items() if n >= min_screen_freq)
+
+
 __all__ = [
     "default_public_screen_set_path",
     "default_public_validation_screen_set_path",
+    "gene_universe",
     "load_screens",
 ]

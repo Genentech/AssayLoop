@@ -331,6 +331,13 @@ pool** (`--full-genome`): classical models normally pick from the screen's ~18k 
 while LLMs pick from the whole genome, so the pool is unified to the union across screens
 and every method faces the same choice set.
 
+That pool is the **f2 universe** — the union kept to genes measured in at least two of the
+twenty libraries, 21,147 genes. The one-screen tail is mostly pseudogenes and per-library
+assembly artefacts; the unfiltered union is 22,174. One function builds it,
+`assayloop.tasks.gene_universe(screens, min_screen_freq=2)`, and `--full-genome` and
+`full_genome_table.py --min-screen-freq 2` both go through it. Pass `--min-screen-freq 0`
+for the unfiltered union.
+
 Half the table you regenerate, half you download. The AssayFormer, BPMF, MAML and random
 rows are deterministic given a checkpoint, so the table generator just re-runs them — minutes
 on a GPU. The LLM and external-baseline rows are not reproducible in the same sense: they are

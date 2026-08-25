@@ -15,6 +15,7 @@ from .gene_batch import (
 from .screen_sets import (
     default_public_screen_set_path,
     default_public_validation_screen_set_path,
+    gene_universe,
     load_screens,
 )
 
@@ -23,6 +24,7 @@ __all__ = [
     "ScreenRecord",
     "screen_from_example",
     "make_task",
+    "gene_universe",
     "load_screens",
     "default_public_screen_set_path",
     "default_public_validation_screen_set_path",

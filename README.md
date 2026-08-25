@@ -45,19 +45,26 @@ from huggingface_hub import snapshot_download
 from assaybench import SequentialLoop, enrichment_factor
 from assayloop.acquisitions.greedy_from_model import GreedyFromModel
 from assayloop.models.amortized_ranker import AmortizedRankerModel
-from assayloop.tasks import load_screens, make_task
+from assayloop.tasks import gene_universe, load_screens, make_task
 
 ckpt = snapshot_download("Genentech/assayformer")
 model = AmortizedRankerModel(checkpoint=ckpt, ckpt_file="model_last.pt")
 
-screen = load_screens(target_set="public")[0]
-run = SequentialLoop(make_task(screen), model, GreedyFromModel(),
+screens = load_screens(target_set="public")
+universe = gene_universe(screens)          # the f2 pool the paper scores against
+screen = screens[0]
+
+task = make_task(screen, universe_genes=universe)
+run = SequentialLoop(task, model, GreedyFromModel(),
                      metrics=[], batch_size=100).run(n_steps=10)
 
 picked = [g for step in run.history for g in step.acquired_batch]
 hits = [g for g, h in zip(screen.genes, screen.hits) if h]
-print(enrichment_factor(picked, screen.genes, hits, budget=1000))   # 6.96
+print(enrichment_factor(picked, screen.genes, hits, universe, budget=1000))   # 7.61
 ```
+
+Against this screen's own 18,385-gene library instead of the pool, the same checkpoint
+scores 6.96. The wider pool is the paper's setting and what `--full-genome` selects.
 
 Training your own:
 
@@ -111,31 +118,47 @@ uv run assayloop run --model null --acq random --screen-set public_validation
 
 ## Metrics
 
-Every metric takes the genes a method picked and the screen's ground truth, nothing else:
+Every metric takes the genes a method picked and the screen's ground truth. Two of them also
+take the candidate pool, which is how a pick that is a real gene but not in this screen's
+library gets charged:
 
 ```python
 import numpy as np
 from assaybench import (adjusted_nauc, enrichment_factor, fraction_of_hits,
                         percent_essential, shortfall)
-from assayloop.tasks import load_screens
+from assayloop.tasks import gene_universe, load_screens
 
-screen = load_screens(target_set="public")[0]
+screens = load_screens(target_set="public")
+universe = gene_universe(screens)             # the f2 pool, 21,147 genes
+screen = screens[0]
 hits = [g for g, h in zip(screen.genes, screen.hits) if h]
 
-picked = list(np.random.default_rng(0).choice(screen.genes, 1000, replace=False))
+picked = list(np.random.default_rng(0).choice(universe, 1000, replace=False))
 rounds = [picked[i * 100:(i + 1) * 100] for i in range(10)]   # your method's ten batches
 
-enrichment_factor(picked, screen.genes, hits, budget=1000)  # EF     0.979  vs. uniform random
-adjusted_nauc(rounds, screen.genes, hits)                   # nAUC   0.031  how early hits came in
-fraction_of_hits(picked, screen.genes, hits)                # FH     0.053  share of the screen's hits
-shortfall(picked, screen.genes)                             # SF     0.0    budget slots left unfilled
-percent_essential(picked, screen.genes, hits)               # %ess   0.444  DepMap common-essential
+enrichment_factor(picked, screen.genes, hits, universe, budget=1000)  # EF    0.993
+adjusted_nauc(rounds, screen.genes, hits, universe)                   # nAUC  0.015
+fraction_of_hits(picked, screen.genes, hits)                          # FH    0.047
+shortfall(picked, screen.genes)                                       # SF    0.124
+percent_essential(picked, screen.genes, hits)                         # %ess  0.250
 ```
 
-A uniform-random policy scores EF 1.0. To score against the full-genome pool the paper's
-table uses rather than one screen's library, pass `universe=gene_universe(screens)` — the
-union of the twenty libraries kept to genes measured in at least two of them, 21,147 genes.
-The same call feeds `universe_genes=` on a task, which is what `--full-genome` does.
+| | What it measures | takes `universe` |
+|---|---|---|
+| EF | hits found vs. what uniform random would find, so 1.0 is chance | yes |
+| nAUC | how early in the ten rounds the hits arrived | yes |
+| FH | share of the screen's hits recovered inside the budget | no |
+| SF | share of picks that landed outside this screen's library | no |
+| %ess | share of the hits found that DepMap calls common-essential | no |
+
+`gene_universe(screens)` builds the f2 pool: the union of the twenty libraries kept to genes
+measured in at least two of them. It decides how an out-of-library pick is charged. Names
+inside the pool are forgiven and leave the effective budget; names outside it are charged as
+misses. Drawing from the pool as above, nothing can land outside it, so EF is the same here
+whether or not you pass it. The argument earns its keep on an open-vocabulary policy such as
+an LLM, which can name a string that is not a gene at all: omit it there and every invented
+name is forgiven too, which can only inflate EF. The same call feeds `universe_genes=` on a
+task, which is what `--full-genome` does.
 
 ## Your own method
 
@@ -145,7 +168,7 @@ and hand it to the same loop:
 ```python
 from assaybench import Model, ModelPrediction, SequentialLoop
 from assayloop.acquisitions.greedy_from_model import GreedyFromModel
-from assayloop.tasks import load_screens, make_task
+from assayloop.tasks import gene_universe, load_screens, make_task
 
 class MyRanker(Model):
     """Score a gene 1.0 if a hit found so far shares its first three letters.
@@ -163,8 +186,9 @@ class MyRanker(Model):
         return ModelPrediction(
             scores={g: float(g[:3] in hit_prefixes) for g in candidates})
 
-screen = load_screens(target_set="public")[0]
-run = SequentialLoop(make_task(screen), MyRanker(), GreedyFromModel(),
+screens = load_screens(target_set="public")
+task = make_task(screens[0], universe_genes=gene_universe(screens))   # the f2 pool
+run = SequentialLoop(task, MyRanker(), GreedyFromModel(),
                      metrics=[], batch_size=100).run(n_steps=10)
 
 for step in run.history:            # one record per round

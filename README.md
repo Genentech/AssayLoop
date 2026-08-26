@@ -143,23 +143,6 @@ shortfall(picked, screen.genes)                                       # SF    0.
 percent_essential(picked, screen.genes, hits)                         # %ess  0.250
 ```
 
-| | What it measures | takes `universe` |
-|---|---|---|
-| EF | hits found vs. what uniform random would find, so 1.0 is chance | yes |
-| nAUC | how early in the ten rounds the hits arrived | yes |
-| FH | share of the screen's hits recovered inside the budget | no |
-| SF | share of picks that landed outside this screen's library | no |
-| %ess | share of the hits found that DepMap calls common-essential | no |
-
-`gene_universe(screens)` builds the f2 pool: the union of the twenty libraries kept to genes
-measured in at least two of them. It decides how an out-of-library pick is charged. Names
-inside the pool are forgiven and leave the effective budget; names outside it are charged as
-misses. Drawing from the pool as above, nothing can land outside it, so EF is the same here
-whether or not you pass it. The argument earns its keep on an open-vocabulary policy such as
-an LLM, which can name a string that is not a gene at all: omit it there and every invented
-name is forgiven too, which can only inflate EF. The same call feeds `universe_genes=` on a
-task, which is what `--full-genome` does.
-
 ## Your own method
 
 Implement `Model` (score the candidates) or `AcquisitionFunction` (choose from the scores)

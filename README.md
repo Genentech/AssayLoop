@@ -187,8 +187,6 @@ To reach your method from the CLI, add a branch to `make_model` in
 | `bash scripts/fetch_gene_sets.sh` | MSigDB | `bio_ucb`, pathway metrics, the sunburst figure |
 | `bash scripts/fetch_ground_truth.sh` | STRING / CORUM / SIGNOR | network-recovery analysis |
 
-Nothing silently substitutes for a missing download. The code raises and names the fetch
-script.
 
 ## Reproducing the paper's table
 
@@ -198,11 +196,7 @@ uv run assayloop figure main-table --min-screen-freq 2
 uv run assayloop figure --list             # every paper figure, and what has to exist first
 ```
 
-The AssayFormer, BPMF, MAML and random rows re-run from a checkpoint. The LLM and
-external-baseline rows are ~400 paid API runs across nine vendors, published as the sweep
-bundle above. Nothing prints a dash for data you did not download; it raises and names the
-fetch script. [`README_DETAILED.md`](README_DETAILED.md) has the per-row commands, every
-baseline and acquisition, and the figure scripts.
+[`README_DETAILED.md`](README_DETAILED.md) has the per-row commands, every baseline and acquisition, and the figure scripts.
 
 ## Citation
 

@@ -25,10 +25,6 @@ cd assayloop
 uv sync --extra torch     # drop --extra torch for the CPU-only baselines and analysis
 ```
 
-Python 3.11+. Screens download from Hugging Face on first use. No API key is needed to run
-AssayFormer or to reproduce its numbers; you need one only for the LLM baselines, and only
-for the provider you call (set `ASSAYLOOP_LLM_PROVIDER` and that provider's key in `.env`).
-
 ## Quickstart
 
 ```bash
@@ -63,8 +59,7 @@ hits = [g for g, h in zip(screen.genes, screen.hits) if h]
 print(enrichment_factor(picked, screen.genes, hits, universe, budget=1000))   # 7.61
 ```
 
-Against this screen's own 18,385-gene library instead of the pool, the same checkpoint
-scores 6.96. The wider pool is the paper's setting and what `--full-genome` selects.
+No API key is needed to run AssayFormer or to reproduce its numbers.
 
 Training your own:
 
@@ -87,9 +82,8 @@ uv run assayloop eval-ranker-handoff \
     --checkpoint <rl-ckpt-dir> --ckpt-file model_last.pt \
     --warm-dir output/runs --warm-prefix sweep-<id>- --n 3
 ```
-
 The first `--n` rounds are replayed from that sweep, then AssayFormer continues with them as
-context.
+context. For the llm provider you set `ASSAYLOOP_LLM_PROVIDER` and that provider's key in `.env`.
 
 ## Screen sets
 

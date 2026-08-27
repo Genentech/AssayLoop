@@ -37,8 +37,8 @@ DOCS = Path(__file__).resolve().parent
 FIG_OUT = DOCS / "assets" / "figures"
 DATA_OUT = DOCS / "assets" / "data"
 
-#: Render scale. 3x of a 72dpi PDF point grid is 216 dpi -- sharp on a 2x
-#: display at the width these figures are shown, without shipping 4 MB.
+#: Default render scale for the pipeline panel crops. The wider README teaser
+#: uses 6x below so its small labels remain sharp on high-density displays.
 ZOOM = 3.0
 
 #: A panel box is at least this many points on a side. Everything smaller in
@@ -132,7 +132,7 @@ class Source:
 
 
 SOURCES = [
-    Source(key="figure1", pdf="figure1.pdf", zoom=3.0),
+    Source(key="figure1", pdf="figure1.pdf", zoom=6.0),
     Source(key="ef_metrics", pdf="ef_metrics.pdf", zoom=2.0),
     Source(key="pipeline", pdf="pipeline.pdf", zoom=2.4, split_panels=True),
 ]

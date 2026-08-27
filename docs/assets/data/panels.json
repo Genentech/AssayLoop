@@ -1,10 +1,10 @@
 {
   "figures": {
     "figure1": {
-      "image": "assets/figures/figure1.png",
+      "image": "assets/figures/figure1.png?v=2d3c8d2f",
       "pdf": "assets/figures/figure1.pdf",
-      "width": 1566,
-      "height": 559
+      "width": 3132,
+      "height": 1119
     },
     "ef_metrics": {
       "image": "assets/figures/ef_metrics.png",

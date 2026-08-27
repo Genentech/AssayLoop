@@ -8,7 +8,7 @@ Code for **"Biology-in-the-loop: Amortized Adaptive Hit Discovery in CRISPR Scre
 
 ![The task: a screen is a library of genes, a phenotype and a hit set. Each round, a method
 sees the phenotype and everything it has already assayed, and chooses the next hundred
-genes.](docs/assets/figures/figure1.png?v=9b47485a)
+genes.](docs/assets/figures/figure1.png?v=2d3c8d2f)
 
 A CRISPR screen has ~20,000 candidate genes and a budget for testing a few hundred at a
 time. AssayLoop chooses which genes to test next, round after round, so hits show up early.

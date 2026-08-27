@@ -5,7 +5,10 @@ The paper's Figure 11 shows a 2-D projection of the K=10 BPMF gene embedding
 with three colourings (HDBSCAN cluster, CORUM complex family, Reactome
 pathway) as three static panels. This writes the same projection out as data
 so ``umap.html`` can colour it by any of those on demand, plus hit rate and
-DepMap common-essential status, and let the reader search for a gene.
+DepMap common-essential status, and let the reader search for a gene. The
+interactive Reactome view rolls the paper's specific pathways up to top-level
+categories so the long tail does not collapse almost every annotated gene
+into a single grey "other" group.
 
 The coordinates come from the same helper the figure uses --
 ``assayloop.scripts._bpmf_embedding.run_umap_cosine``, at the same seed -- so
@@ -99,6 +102,7 @@ def main() -> int:
     from assayloop.scripts._bpmf_embedding import (
         ANALYSIS_DIR, load_full_bpmf, load_pathway_labels, run_umap_cosine,
     )
+    from assayloop.scripts.pathway_hierarchy import load as load_pathway_hierarchy
     from assayloop.scripts.paper_handoff_composition import (
         _load_complex_family_membership,
     )
@@ -130,7 +134,17 @@ def main() -> int:
     # Colourings that need their own lookups. Both raise rather than
     # returning an empty map -- an all-grey scatter reads as "no structure",
     # not as "the annotation file was missing".
-    gene_to_pw, top_pathways = load_pathway_labels([r["gene"] for r in genes_meta])
+    gene_to_specific, _ = load_pathway_labels([r["gene"] for r in genes_meta])
+    category_of = load_pathway_hierarchy()["category_of"]
+    gene_to_pw = {
+        gene: category_of[pathway]
+        for gene, pathway in gene_to_specific.items()
+        if pathway in category_of
+    }
+    pathway_counts = {}
+    for pathway in gene_to_pw.values():
+        pathway_counts[pathway] = pathway_counts.get(pathway, 0) + 1
+    top_pathways = sorted(pathway_counts, key=lambda p: (-pathway_counts[p], p))
     # Keyed by UPPERCASE gene, and the value is a *set* of families: a subunit
     # can sit in complexes the keyword matcher maps to more than one family.
     # The figure colours by one, so the site does too -- sorted()[0] rather
@@ -169,8 +183,8 @@ def main() -> int:
             "essential": "DepMap common-essential flag.",
             "cluster_label": "HDBSCAN cluster in the original K-dimensional "
                              "space, named by its dominant phenotype.",
-            "pathway": "Most specific Reactome set of 10-150 genes "
-                       "containing the gene; blank if none does.",
+            "pathway": "Top-level Reactome category containing the gene's "
+                       "assigned specific pathway; blank if none does.",
             "complex": "CORUM complex family; blank if the gene is in none.",
         },
         "top_pathways": top_pathways,

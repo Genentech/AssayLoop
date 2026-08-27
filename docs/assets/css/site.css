@@ -134,6 +134,7 @@ h1 { font-size: 38px; margin: 0 0 12px; }
 h1.paper-title { font-size: 34px; margin-bottom: 8px; }
 h2 { font-size: 22px; margin: 36px 0 12px; }
 h3 { font-size: 17px; margin: 24px 0 8px; }
+.interpretation-heading { font-size: 20px; margin-top: 32px; }
 
 .kicker {
   font-family: var(--sans);

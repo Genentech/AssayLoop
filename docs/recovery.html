@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Recovery curves — AssayLoop</title>
 <meta name="description" content="Interactive recovery curves: watch hits accumulate round by round for any subset of methods, averaged over the held-out screens or broken out screen by screen."/>
-<link rel="stylesheet" href="assets/css/site.css?v=b5266bb0"/>
+<link rel="stylesheet" href="assets/css/site.css?v=4b58e340"/>
 <script src="https://cdn.plot.ly/plotly-2.32.0.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -16,9 +16,8 @@
     <p class="kicker">Interactive</p>
     <h1>Recovery curves</h1>
     <p class="lede">
-      Ten rounds, one hundred genes each. The whole question is how fast the hits come in &mdash;
-      and, for the methods that pick genes the screen never assayed, how much of the budget is
-      spent outside the library at all. Pick any set of methods and watch both.
+      Ten rounds, one hundred genes each. How quickly is each method able to find the screen's
+      hits.
     </p>
 
     <!-- Filled by recovery.js from the budget_overshoot field build_data.py
@@ -50,8 +49,8 @@
       <div class="control">
         <label for="band">Error band</label>
         <select id="band">
-          <option value="sem">Show &plusmn;1 SEM</option>
           <option value="none">Lines only</option>
+          <option value="sem">Show &plusmn;1 SEM</option>
         </select>
       </div>
       <div class="control">
@@ -78,19 +77,23 @@
 
     <h2>What to look for</h2>
     <ul class="bullets">
-      <li><strong>The early rounds are where the handoff pays.</strong> Compare
-        <em>Gemini-3.1-pro</em> against <em>AssayFormer + BPMF + GRPO</em> over the first
-        two or three rounds, then against
-        <em>Gemini-3.1-Pro &rarr; AssayFormer</em> over all ten. The LLM starts better and the
-        learned policy finishes better; the handoff is an attempt to have both.</li>
-      <li><strong>Switch the Y axis to "picks outside the screen's library."</strong> This is the
-        cost that the enrichment factor alone hides: a method proposing real genes that this screen
-        never assayed spends real budget on them and can never find a hit there. It is the part of
-        the <a href="results.html">Shortfall column</a> that comes from real genes, unrolled over
-        rounds. The three finetuned Qwen rows sit at zero here by construction, not by virtue:
-        their harness skipped a name it could not assay and read further down the model's list
-        instead, so those picks cost nothing. What they cost shows up at the other end of the
-        curve, which stops short of 1,000 genes when the list runs out first.</li>
+      <li><strong>LLMs start strong in the early rounds.</strong> Compare
+        <em>Gemini-3.1-pro</em> against <em>AssayFormer</em> over the first two or three rounds,
+        then against <em>Gemini-3.1-Pro &rarr; AssayFormer (AssayLoop)</em> over all ten. The LLM
+        starts better and the learned policy finishes better; the handoff has both abilities.</li>
+      <li><strong>See how much an LLM uses hit feedback.</strong> Select
+        <em>Gemini-3.1-pro</em> and <em>Gemini-3.1-pro &minus; hit labels</em> to compare the same
+        LLM with and without the outcomes from previous rounds.</li>
+      <li><strong>Follow the effect of each training stage.</strong> For AssayLLM, compare the
+        Qwen3.6-27B base, + SFT, and + SFT + GRPO curves. For AssayFormer, compare
+        <em>AssayFormer + BPMF</em> with <em>AssayFormer + BPMF + GRPO</em> to see what RL adds
+        to supervised training.</li>
+      <li><strong>Switch the Y axis to "picks outside the screen's library."</strong> This is what
+        happens when a method proposes real genes that are outside this screen's library, or
+        when a model suggests non-existent genes. It's measured by the Shortfall metric. It shrinks
+        the number of genes acquired by a model, because it wastes budget on untestable genes. This
+        is an inherent limitation of the LLM models, so we account for it in EF and nAUC, and we
+        subject all models to this constraint.</li>
       <li><strong>Switch to one screen at a time.</strong> The mean curve is smooth; the individual
         screens are not. Some screens are easy for everything and some separate the methods
         sharply.</li>
@@ -100,6 +103,6 @@
 
 <div id="site-footer"></div>
 <script src="assets/js/site.js?v=e7f8b5b1" data-build="8787e112"></script>
-<script src="assets/js/recovery.js?v=ef971927"></script>
+<script src="assets/js/recovery.js?v=c482e7e1"></script>
 </body>
 </html>

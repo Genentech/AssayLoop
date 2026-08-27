@@ -19,10 +19,10 @@
   //: ("Qwen3.6-27B (base) + SFT + GRPO (= AssayLLM)"); a legend on a teaser has
   //: room for the name of the thing ("AssayLLM"). `alias` is a name that the
   //: label replaced and that the reader still needs, shown on hover -- it is
-  //: set on exactly two curves: the handoff, whose two halves are the whole
-  //: point of the row, and Haystacks, whose name is the one the paper cites it
-  //: under. The recipes ("+ BPMF + GRPO", "+ SFT + GRPO") are not aliases in
-  //: that sense; the table and the method page are where a recipe belongs.
+  //: set on exactly one curve: the handoff, whose two halves are the whole
+  //: point of the row. The recipes ("+ BPMF + GRPO", "+ SFT + GRPO") are not
+  //: aliases in that sense; the table and the method page are where a recipe
+  //: belongs.
   const SERIES = [
     { key: "Gemini-3.1-Pro - AssayLoop Handoff", label: "AssayLoop",
       alias: "Gemini-3.1-Pro → AssayFormer" },
@@ -31,12 +31,10 @@
     { key: "Gemini-3.1-pro", label: "Gemini-3.1-pro" },
     { key: "ICBR-EF", label: "ICBR-EF" },
     { key: "BPMF", label: "BPMF" },
-    // Dashed rather than recoloured. Haystacks and BPMF are both "adaptive
-    // experimental design" and so draw the same grey; giving this one a colour
-    // of its own would put it in a family it is not in, and the palette is the
-    // one thing every chart on the site shares.
-    { key: "Haystacks", label: "Probability-of-Hit", alias: "Haystacks",
-      dash: "dot" },
+    // Draws the same grey as BPMF: both are "adaptive experimental design", and
+    // giving this one a colour of its own would put it in a family it is not
+    // in. The palette is the one thing every chart on the site shares.
+    { key: "Haystacks", label: "Probability-of-Hit" },
   ];
 
   //: The chance line, same as the explorer's -- not a family colour, because it
@@ -45,35 +43,39 @@
   //: build_random_reference there for why that is also the EF = 1 line.
   const CHANCE_COLOR = "rgba(27,31,36,0.55)";
 
-  function chanceTrace(mean) {
+  function acquiredFraction(values, universeSize) {
+    return values.map((n) => n / universeSize);
+  }
+
+  function chanceTrace(mean, universeSize) {
     const ref = mean.random_reference;
     if (!ref || !ref.frac_hits) return null;
     return {
-      x: [0].concat(ref.n_acquired),
+      x: [0].concat(acquiredFraction(ref.n_acquired, universeSize)),
       y: [0].concat(ref.frac_hits),
       name: "Picking at random",
       type: "scatter",
       mode: "lines",
       line: { color: CHANCE_COLOR, width: 1.5, dash: "dash" },
-      hovertemplate: "<b>Picking at random</b><br>%{x:,.0f} genes assayed" +
+      hovertemplate: "<b>Picking at random</b><br>%{x:.1%} of genes acquired" +
                      "<br>%{y:.1%} of hits recovered<extra></extra>",
     };
   }
 
-  function traceFor(spec, meta) {
+  function traceFor(spec, meta, universeSize) {
     const color = S.familyColor(meta.family);
     const title = spec.alias ? `${spec.label} (${spec.alias})` : spec.label;
     return {
       // Both series start at the origin: before anything is assayed, no hits
       // have been found. The export starts at the end of round one, and a line
       // that begins a hundred genes in leaves the corner of the plot empty.
-      x: [0].concat(meta.n_acquired),
+      x: [0].concat(acquiredFraction(meta.n_acquired, universeSize)),
       y: [0].concat(meta.frac_hits),
       name: spec.label,
       type: "scatter",
       mode: "lines",
-      line: { color, width: 2.6, dash: spec.dash || "solid" },
-      hovertemplate: `<b>${title}</b><br>%{x:,.0f} genes assayed` +
+      line: { color, width: 2.6 },
+      hovertemplate: `<b>${title}</b><br>%{x:.1%} of genes acquired` +
                      "<br>%{y:.1%} of hits recovered<extra></extra>",
     };
   }
@@ -83,15 +85,24 @@
     if (!node) return;
     const status = document.getElementById("hero-status");
 
-    let mean;
+    let mean, summary;
     try {
-      mean = await S.fetchJSON("assets/data/recovery_mean.json");
+      [mean, summary] = await Promise.all([
+        S.fetchJSON("assets/data/recovery_mean.json"),
+        S.fetchJSON("assets/data/summary.json"),
+      ]);
     } catch (err) {
       S.showError(node, err);
       return;
     }
 
-    const chance = chanceTrace(mean);
+    const universeSize = summary.universe_size;
+    if (!Number.isFinite(universeSize) || universeSize <= 0) {
+      S.showError(node, new Error("assets/data/summary.json has no valid universe_size"));
+      return;
+    }
+
+    const chance = chanceTrace(mean, universeSize);
     const missing = SERIES.filter((s) => !mean.methods[s.key]).map((s) => s.key);
     if (!chance) missing.push("the chance line (random_reference)");
     // Legend order = the order the curves finish in, best first, so reading
@@ -102,7 +113,7 @@
       .map((s) => ({ spec: s, meta: mean.methods[s.key] }))
       .sort((a, b) => b.meta.frac_hits[b.meta.frac_hits.length - 1]
                     - a.meta.frac_hits[a.meta.frac_hits.length - 1])
-      .map(({ spec, meta }) => traceFor(spec, meta));
+      .map(({ spec, meta }) => traceFor(spec, meta, universeSize));
     // Appended after the sort, so it draws on top of the curves and reads last
     // in the legend: it is the floor they are measured against, not a rival.
     if (chance) traces.push(chance);
@@ -119,12 +130,13 @@
     if (!traces.length) return;
 
     const layout = S.mergeLayout({
-      xaxis: { title: "Genes assayed (cumulative)", rangemode: "tozero" },
+      xaxis: { title: "Genes acquired (cumulative)", tickformat: ".0%",
+               dtick: 0.01, rangemode: "tozero" },
       yaxis: { title: "Fraction of hits recovered", tickformat: ".0%",
                rangemode: "tozero" },
       legend: { orientation: "h", y: -0.24, x: 0 },
       hovermode: "closest",
-      // r leaves room for the last x tick: the curves run to 1,000 genes and a
+      // r leaves room for the last x tick: the curves run to about 5% and a
       // narrower right margin cuts the label in half.
       margin: { l: 66, r: 40, t: 12, b: 96 },
       height: 400,

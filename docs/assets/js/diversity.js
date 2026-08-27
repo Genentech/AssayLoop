@@ -13,11 +13,11 @@
     // 186 Reactome level-2 groups, and the between-method range at batch scope
     // is only ~8 groups wide, so the tenths digit carries signal.
     ep_b: { label: "EP-B (per batch)", short: "EP-B", digits: 1,
-            axis: "Effective pathway groups per 100-gene batch" },
+            axis: "Effective number of pathways per 100-gene batch" },
     ep_s: { label: "EP-S (per screen)", short: "EP-S", digits: 1,
-            axis: "Effective pathway groups per screen" },
+            axis: "Effective number of pathways per screen" },
     ep_d: { label: "EP-D (whole test set)", short: "EP-D", digits: 1,
-            axis: "Effective pathway groups across the test set" },
+            axis: "Effective number of pathways across the test set" },
     vendi: { label: "Vendi score", short: "Vendi", digits: 1,
              axis: "Vendi score (embedding diversity)" },
   };
@@ -26,12 +26,33 @@
                   ablations: "hide", order: "value" };
   let DATA = null;
 
+  function isAblationRow(row) {
+    return row.family === "ablation" || row.display === "- hit labels";
+  }
+
   function visibleRows() {
     return DATA.rows.filter((r) => {
-      if (state.ablations === "hide" && r.family === "ablation" && !state.family) return false;
+      if (state.ablations === "hide" && isAblationRow(r)) return false;
       if (state.family && r.family !== state.family) return false;
       return true;
     });
+  }
+
+  function scopeNote(key) {
+    const counts = DATA.reference_counts;
+    if (key === "ep_b") {
+      return `Each method is compared using ${counts.batch} Reactome-annotated ` +
+             `genes per full batch.`;
+    }
+    if (key === "ep_s") {
+      return `Each method is compared using ${counts.screen} Reactome-annotated ` +
+             `genes per screen.`;
+    }
+    if (key === "ep_d") {
+      return `Each method is compared using ${counts.dataset.toLocaleString()} ` +
+             `Reactome-annotated genes across the test set.`;
+    }
+    return "Embedding diversity within acquisition batches, scaled relative to random picking.";
   }
 
   // ------------------------------------------------------------------ bars
@@ -86,16 +107,17 @@
     const notRun = unscored.filter((r) => r.available === false);
     const why = [];
     if (belowFloor.length) {
+      const retention = Math.round(DATA.retention_floor * 100);
       why.push(`Not shown: ${belowFloor.map((r) => S.methodLabel(r.name)).join(", ")} ` +
-               `&mdash; too few of their picks are annotated for this scope to ` +
-               `be scored. <a href="#floor">Why.</a>`);
+               `&mdash; fewer than ${retention}% of their units contain enough ` +
+               `Reactome-annotated genes to be scored. <a href="#floor">Why.</a>`);
     }
     if (notRun.length) {
       why.push(`Also missing: ${notRun.map((r) => S.methodLabel(r.name)).join(", ")} ` +
                `&mdash; not evaluated on this build, so nothing was measured ` +
                `at any scope.`);
     }
-    const note = DATA.notes[state.scope];
+    const note = scopeNote(state.scope);
     caption.innerHTML =
       `<span class="label">${scope.label}.</span> ${note} ` +
       (why.length ? why.join(" ")
@@ -156,6 +178,10 @@
     document.getElementById("m-batch").textContent = counts.batch;
     document.getElementById("m-screen").textContent = counts.screen;
     document.getElementById("m-dataset").textContent = counts.dataset;
+    const retention = `${Math.round(DATA.retention_floor * 100)}%`;
+    document.querySelectorAll(".retention-floor").forEach((node) => {
+      node.textContent = retention;
+    });
   }
 
   // ------------------------------------------------------------------ init

@@ -16,7 +16,7 @@
 
 (function () {
   const S = window.AssayLoop;
-  const SRC = "assets/data/figures.json";
+  const SRC = "assets/data/figures.json?v=9c79790a";
 
   function escapeAttr(text) {
     return String(text).replace(/&/g, "&amp;").replace(/"/g, "&quot;")

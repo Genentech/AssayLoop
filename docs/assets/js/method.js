@@ -30,7 +30,7 @@
 
     let data;
     try {
-      data = await S.fetchJSON("assets/data/panels.json");
+      data = await S.fetchJSON("assets/data/panels.json?v=e9579e33");
     } catch (err) {
       S.showError(node, err);
       return;

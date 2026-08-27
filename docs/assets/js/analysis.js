@@ -45,7 +45,7 @@
     if (!node) return;
     let data;
     try {
-      data = await S.fetchJSON("assets/data/pathway_heatmap.json");
+      data = await S.fetchJSON("assets/data/pathway_heatmap.json?v=26ae8bdc");
     } catch (err) {
       S.showError(node, err);
       return;
@@ -56,6 +56,15 @@
     const methods = data.methods.slice().reverse();
     const z = data.z.slice().reverse();
     const hover = data.hover.slice().reverse();
+    const customdata = hover.map((row, i) => {
+      const method = methods[i];
+      const summary =
+        `EP-D: ${data.eff_pathways[method].toFixed(1)}` +
+        `<br>unique genes: ${data.unique_genes[method].toLocaleString()}` +
+        `<br>Reactome-annotated picks: ` +
+        `${(100 * data.annotated_fraction[method]).toFixed(0)}%`;
+      return row.map((cell) => `${cell}<br>${summary}`);
+    });
 
     const trace = {
       type: "heatmap",
@@ -66,7 +75,7 @@
       // belongs, and the hover below still names the row.
       y: methods,
       z: z,
-      customdata: hover,
+      customdata: customdata,
       colorscale: DIVERGING,
       // z is left uncapped and the *scale* is clamped instead, so Plotly
       // saturates the colour while %{z} in the hover still reports what the
@@ -96,13 +105,13 @@
     if (caption) {
       caption.innerHTML =
         `<span class="label">Orange is over-picked, blue under-picked.</span> ` +
-        `Columns are ordered by how much of the universe each root accounts ` +
-        `for, so the dense biology is on the left. A blank cell is a root the ` +
-        `model never picked from at all. The scale saturates at &plusmn;1, as ` +
-        `in the paper &mdash; half chance to twice chance &mdash; so the deepest ` +
-        `blues are all "hardly ever"; hover for the cell's actual value. ` +
-        `<a href="diversity.html">How much distinct biology each row spans, ` +
-        `as a number &rarr;</a>`;
+        `The scale saturates at &plusmn;1 in log<sub>2</sub> space, from half ` +
+        `the random share to twice the random share. Hover for the uncapped ` +
+        `ratio, raw pathway share, EP-D, unique-gene count, and Reactome ` +
+        `annotation coverage. A blank cell means the model never selected a ` +
+        `gene from that category. ` +
+        `<a href="diversity.html">How effective pathways are calculated ` +
+        `&rarr;</a>`;
     }
   }
 
@@ -180,9 +189,8 @@
         `<span class="label">Outlined cells are the pairs the paper discusses;` +
         `</span> hover one for the mechanism it reads into it. Orange means ` +
         `observing the probe as a hit raises the model's belief about the ` +
-        `target, blue means it lowers it. The influence is not symmetric and ` +
-        `is not a correlation &mdash; it is what one observation does to one ` +
-        `prediction, averaged over random background contexts.`;
+        `target, and blue means it lowers it. Influence is a directional, ` +
+        `context-dependent update rather than a symmetric gene association.`;
     }
   }
 

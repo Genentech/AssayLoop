@@ -77,38 +77,48 @@ PANEL_TITLES = {
 #: figure it describes, so the page is a caption edit away from being right.
 PANEL_CAPTIONS = {
     "A": (
-        "AssayBench-Loop turns 1,920 historical CRISPR screens into a sequential "
-        "decision problem. A method sees the screen description and must rank the "
-        "genes it wants assayed next; the split is chronological, so the twenty test "
-        "screens were run after everything in training."),
+        "AssayBench-Loop turns 1,920 historical CRISPR screens into a lab-in-the-loop "
+        "approach. A method sees the screen description and must rank the genes it wants "
+        "assayed next; the data split is chronological, so the test split reflects the "
+        "changing taste of scientists over time."),
     "B": (
         "The five broad phenotype families, across the train, validation and test "
-        "splits. The test screens are deliberately not drawn in the training "
-        "proportions."),
+        "splits. The validation and test split were selected to have broad phenotypic "
+        "coverage and screen diversity, have ground truth for most genes (&gt; 18k), and "
+        "have sufficient signal (&gt; 50 hits and &lt; 15% hits)."),
     "C": (
-        "Gene embeddings are initialised by Bayesian probabilistic matrix "
-        "factorisation of the historical hit matrix &mdash; a Gibbs posterior over the "
-        "screen and gene factors, averaged into one vector per gene."),
+        "First, gene embeddings are initialised by applying Bayesian probabilistic "
+        "matrix factorisation to the screen x gene hit matrix. Notably, we find this "
+        "particular gene embedding initialization to be important for downstream "
+        "performance"),
     "D": (
-        "AssayFormer scores every untested gene from the screen embedding and the "
-        "genes already assayed with their outcomes. Supervised training is a "
-        "per-gene binary cross-entropy against the observed hit labels."),
+        "AssayFormer is a encoder-only transformer model which accepts the screen "
+        "embedding and the already-assayed genes with their outcomes as input. Scoring "
+        "is done using a bilinear scoring head, and produces a score for every untested "
+        "gene. Gene embeddings come from BPMF initialization. Supervised finetuning is "
+        "done on the training screens using a per-gene binary cross-entropy against the "
+        "observed hit labels, given a randomly selected context of other genes from the "
+        "screen."),
     "E": (
-        "RL fine-tuning with GRPO over eight full-screen rollouts. The reward is a "
-        "context delta: hits found by the policy that can see the history, minus hits "
-        "found by a frozen copy that cannot. Picking well from prior knowledge alone "
-        "earns nothing &mdash; only using the feedback pays."),
+        "Next, RL fine-tuning with GRPO is applied to the model with eight full-screen "
+        "rollouts. To sample different trajectories for each rollout, we use the Gumbel "
+        "top-k sampling trick. We use a context delta approach as our reward: hits found "
+        "by the policy that can see the history, minus hits found by a frozen copy that "
+        "cannot. This encourages the model to learn how to leverage the context to "
+        "outperform the frozen context-free model."),
     "F": (
-        "Three paradigms. Single-screen active learning adapts within one assay but "
-        "starts cold; amortized transfer learns how to adapt from a thousand previous "
-        "assays; LLMs bring literature-scale priors but weak in-context learning."),
+        "This panel shows three paradigms for sequential experimental design on screens. "
+        "Single-screen active learning adapts within one assay but starts cold. "
+        "Amortized transfer learns how to adapt from previous screens (our approach). "
+        "LLMs bring literature-scale priors but weak in-context learning."),
     "G": (
-        "AssayLoop combines the last two. An LLM ranks the first rounds from prior "
-        "knowledge, then hands the screen to AssayFormer once enough assay-specific "
-        "evidence has accumulated for in-context adaptation to beat the prior."),
+        "AssayLoop combines the benefits of an amortized model and LLM priors. An LLM "
+        "ranks the first rounds from prior knowledge, then hands the results to "
+        "AssayFormer once enough assay-specific evidence has accumulated for in-context "
+        "adaptation to beat the prior."),
     "H": (
         "Held-out recovery curves. AssayLoop finds 27.7% of hits within an effective "
-        "5% of the library, an enrichment factor of 5.66 over a uniform draw."),
+        "5% of the library, an enrichment factor of 5.66 over a random model."),
 }
 
 

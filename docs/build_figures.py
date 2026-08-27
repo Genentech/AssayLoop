@@ -112,55 +112,51 @@ FIGURES = [
             "phenotype and whatever it has already assayed, and must choose the next hundred "
             "genes. Ten rounds, then the score."),
         section="Figure 2 &middot; Introduction",
-        paper_pdf="assaybench-loop-figure1-v8.pdf",
+        paper_pdf="assaybench-loop-figure1-v15.pdf",
         note="Hand-drawn schematic. No script generates it.",
     ),
     Figure(
         key="ef_metrics",
-        title="What the enrichment factor measures.",
+        title="Metrics used in AssayBench-Loop.",
         caption=(
-            "The headline metric, drawn out: hit rate among the picked genes relative to the "
-            "hit rate of a uniform draw from the same candidate pool, adjusted for how many "
-            "of the picks were valid targets at all."),
+            "Adjusted EF and nAUC, effective-budget terms, a worked comparison across "
+            "hit-rich and hit-sparse screens, recovery trajectories, and the complementary "
+            "diagnostics reported in the paper."),
         section="Figure 3 &middot; Methods",
-        paper_pdf="assayloop-ef-metrics-v13.pdf",
+        paper_pdf="assayloop-ef-metrics-v14.pdf",
         note="Hand-drawn schematic. No script generates it. "
              "The metric itself is <code>assaybench.benchmark.sequential."
              "enrichment_factor_from_value</code>.",
     ),
     Figure(
         key="lopo",
-        title="Leave-one-phenotype-out generalisation.",
+        title="Leave-one-phenotype-out (LOPO) generalization.",
         caption=(
-            "Train on four of AssayBench's five broad phenotypes, evaluate on the fifth. "
-            "Compared against a gene-level kNN baseline and the screen-kNN baseline. SFT "
-            "improves on kNN and RL improves further, so AssayFormer generalises to "
-            "phenotypes it never saw in training."),
+            "For each phenotype, we compare models trained on all five phenotypes (dark bars) "
+            "with models trained on the remaining four (LOPO, light bars). AssayFormer "
+            "consistently outperforms Screen-kNN across all phenotypes and both training "
+            "regimes. Both methods lose performance under LOPO, but AssayFormer maintains "
+            "strong absolute performance across all held-out phenotypes, whereas Screen-kNN "
+            "degrades substantially on Fitness and Trafficking. The rightmost group shows "
+            "performance on the full test set for reference."),
         section="Figure 4 &middot; Results",
         paper_pdf="lopo_bar_chart.pdf",
         module="assayloop.scripts.plot_lopo_results",
         stem="lopo_bar_chart",
         needs="LOPO sweep results",
-        # Stated rather than papered over. The paper's panel has four series
-        # -- kNN (gene embedding), kNN (nearest screen), Supervised, RL -- and
-        # the script now draws three, having dropped the nearest-screen variant
-        # and changed what the remaining kNN bar measures (Fitness 5.17 in the
-        # paper, 3.15 here). The Supervised and RL bars moved with it. The
-        # regenerated panel is what the released code produces; the paper's is
-        # an earlier render, and the caption above still describes that one.
-        note="The paper's version of this panel has a second kNN series "
-             "(nearest screen) that the released script no longer computes, "
-             "and its kNN bars are the earlier gene-embedding variant. The "
-             "figure here is what the released code produces today; the "
-             "caption still describes the paper's four-series panel.",
+        # The supplied paper panel compares both methods with and without the
+        # phenotype held out. Keep the distinction explicit because rebuilding
+        # still depends on the separate LOPO sweep outputs.
+        note="The public artifact is the paper's four-series LOPO comparison. "
+             "Regenerating it requires the complete LOPO sweep outputs.",
     ),
     Figure(
         key="scaling",
-        title="Performance scales with data, not with model size.",
+        title="Performance scales with data, but not model size.",
         caption=(
             "AssayFormer models trained on 1 to all training screens. Both SFT and RL improve "
             "with more screens, and RL sits above SFT throughout. The gain concentrates in the "
-            "first few acquisition steps &mdash; by 10,000 genes sampled even a random policy "
+            "first few acquisition steps &mdash; by 20,000 genes sampled even a random policy "
             "has found most of the hits."),
         section="Figure 5 &middot; Results",
         paper_pdf="scaling_combined_lines.pdf",
@@ -194,11 +190,15 @@ FIGURES = [
     ),
     Figure(
         key="llm_pathway_heatmap",
-        title="LLMs converge on similar distributions of biology.",
+        title="LLMs converge to similar distributions of biology across families.",
         caption=(
             "Top-level Reactome composition of requested genes, aggregated across the 20 test "
-            "screens. Cells are coloured by the ratio of each model's observed pathway share to "
-            "the share a uniform draw over the candidate universe would give."),
+            "screens. Random is the pathway distribution produced by uniform sampling over the "
+            "candidate universe. Cells show the ratio of the observed pathway share to Random, "
+            "with red indicating over-representation and blue under-representation. LLMs share "
+            "a strong emphasis on RNA and protein metabolism and under-represent bulk metabolism "
+            "and developmental biology. Differences among LLMs are small compared with their "
+            "differences from baseline methods such as kNN."),
         section="Figure 7 &middot; Results",
         paper_pdf="llm_pathway_heatmap.pdf",
         module="assayloop.scripts.plot_llm_pathway_heatmap",
@@ -207,12 +207,17 @@ FIGURES = [
     ),
     Figure(
         key="rollout_composition",
-        title="AssayLoop on two biologically distinct screens.",
+        title="Qualitative analysis of AssayLoop on two biologically distinct screens.",
         caption=(
-            "Composition of each acquisition round for AssayFormer, Gemini-3.1-Pro, and the "
-            "handoff between them, on an NF-&kappa;B / TNF signalling screen and an AAV "
-            "transgene silencing screen. Upper histogram: what was proposed. Lower histogram: "
-            "what hit."),
+            "The figure compares AssayFormer, Gemini-3.1-Pro, and the AssayLoop handoff on an "
+            "NF-&kappa;B / TNF signaling screen and an AAV transgene silencing screen. In each "
+            "panel, the upper histogram shows the Reactome composition of each proposed batch "
+            "and the lower histogram shows the composition of its hits. Gemini and AssayFormer "
+            "begin with substantially different pathway compositions. Gemini finds more hits in "
+            "the first three rounds but drops off afterward; once AssayFormer takes over, it "
+            "proposes different genes with a higher hit yield. AssayFormer also selects more "
+            "genes in the Other category, consistent with Gemini favoring well-known genes and "
+            "pathways. Gemini does not always use its full acquisition budget."),
         section="Figure 8 &middot; Results",
         paper_pdf="paper_handoff_composition_pathway.pdf",
         module="assayloop.scripts.paper_handoff_composition",
@@ -222,32 +227,33 @@ FIGURES = [
     ),
     Figure(
         key="influence",
-        title="Context-conditional gene influence.",
-        # The paper's caption, minus its \cite keys -- the site has no
-        # bibliography to resolve them against, and a bracketed number that
-        # links nowhere is worse than the claim standing on its own.
+        title="Candidate relationships beyond canonical annotations.",
+        # The biologist-written interpretation from the paper, minus its
+        # unresolved LaTeX citation keys. The surrounding prose names the four
+        # databases used for filtering.
         caption=(
-            "For each probe gene, the change in the model's predicted hit probability for every "
-            "target gene when the probe is observed as a hit, averaged over random background "
-            "contexts. Left: boosted pairs. Right: suppressed pairs. "
-            "For boosted pairs, observing the probe gene as essential increases the predicted "
-            "essentiality of the target, indicating synthetic lethal bottlenecks or "
-            "co-essentiality. MYC essentiality predicts spliceosome dependency (SMU1, PRPF4), "
-            "consistent with the &ldquo;transcriptional addiction&rdquo; vulnerability of "
-            "MYC-driven cancers where splicing capacity becomes rate-limiting. MDM2 dependency "
-            "predicts nucleolar stress sensitivity (EMG1, PNO1): disruption of ribosome "
-            "biogenesis releases RPL5/RPL11 to inhibit MDM2 and stabilize p53. "
-            "For the suppressed pairs, observing the probe gene as essential <em>decreases</em> "
-            "the predicted essentiality of the target, revealing epistatic masking and lineage "
-            "exclusion. PIK3CA essentiality suppresses mitotic machinery (MIS18BP1, MPHOSPH10): "
-            "PI3K pathway loss induces G1 arrest, rendering centromere loading and M-phase "
-            "proteins non-essential. SMAD4 suppresses mitochondrial OXPHOS components (NDUFS7, "
-            "NFU1): TGF-&beta;-driven EMT shifts metabolism toward glycolysis, deprioritizing the "
-            "electron transport chain. EGFR suppresses PPDPF (a pancreatic progenitor factor), "
-            "reflecting lineage exclusion: EGFR-dependent tumors are lung/brain-derived, not "
-            "pancreatic. None of these associations appear in STRING, CORUM, SIGNOR, or Reactome; "
-            "they are learned purely from cross-screen co-essentiality patterns via in-context "
-            "learning."),
+            "After removing gene pairs represented in STRING, CORUM, SIGNOR, and Reactome, we "
+            "examine the strongest remaining influences as candidates for hypothesis generation. "
+            "Among the positive pairs, adding MYC to the hit history raises the predicted "
+            "probability of SMU1 and PRPF4. This association with spliceosome factors agrees with "
+            "evidence that oncogenic MYC regulates spliceosome programs and creates dependence on "
+            "core splicing machinery. Adding MDM2 raises EMG1 and PNO1, two factors required for "
+            "small-subunit ribosome biogenesis. Disrupting ribosome biogenesis can stabilize p53 "
+            "through the RPL5/RPL11-5S-RNP-MDM2 nucleolar-surveillance pathway; specifically, "
+            "PNO1 depletion has been shown to increase RPL11-MDM2 association and stabilize p53 "
+            "in TP53-wild-type colorectal cancer cells.<br><br>Among the negative influences, the "
+            "model suggests both novel connections, such as PIK3CA to MIS18BP1, and relationships "
+            "with pathway-level precedent. SMAD4 to NDUFS7 and NFU1 connects SMAD4 with "
+            "mitochondrial function. SMAD4 loss reduces mitochondrial respiration and confers "
+            "resistance to biguanide complex-I inhibitors in pancreatic cancer models, providing "
+            "a context-specific rationale for NDUFS7, although these specific pairs remain "
+            "experimentally unvalidated. NRAS to AMOTL2 has similarly indirect precedent: "
+            "oncogenic NRAS activates Hippo signaling in melanocytes, while parallel BRAF-driven "
+            "MAPK activation reduces expression of the YAP/TAZ target AMOTL2; AMOTL2 itself has "
+            "not been directly tested under NRAS mutation.<br><br>The positive pairs recover "
+            "established biological dependencies, while the negative updates suggest "
+            "uncharacterized pathway relationships. Together they provide specific, testable "
+            "hypotheses about vulnerabilities and mechanisms of resistance."),
         section="Figure 9 &middot; Results",
         paper_pdf="paper_influence_figure.pdf",
         module="assayloop.scripts.paper_influence_figure",
@@ -282,12 +288,14 @@ FIGURES = [
     # two versions of one picture on one site is one too many.
     Figure(
         key="recovering_biology",
-        title="Recovering textbook biology does not predict usefulness.",
+        title="Recovering textbook biology does not predict task usefulness.",
         caption=(
-            "How well each initial embedding recovers gene&ndash;gene relationships from STRING, "
-            "CORUM, SIGNOR, and Reactome, by AUROC over cosine similarity. The embeddings that "
-            "match those databases best &mdash; GenePT, K562 &mdash; are the harder ones to "
-            "train AssayFormer on. Initialising from historical screen data works better."),
+            "Initial embeddings are evaluated by how well cosine similarity recovers "
+            "gene&ndash;gene relationships from STRING, CORUM, SIGNOR, and Reactome. AUROC is "
+            "calculated for each database and averaged across all four. Embeddings that most "
+            "closely recover these databases, including GenePT and K562, are harder to train "
+            "AssayFormer on, whereas matrix-factorization initializations learned from "
+            "historical screens are most useful."),
         section="Figure 12 &middot; Results",
         paper_pdf="gene_embedding_init_story.pdf",
         module="assayloop.scripts.plot_embedding_init_story",
@@ -313,11 +321,12 @@ FIGURES = [
     ),
     Figure(
         key="embedding_drift",
-        title="Initialised BPMF embeddings barely move during training.",
+        title="Embedding drift during training for all ablated embedding types.",
         caption=(
-            "Cosine similarity between gene pairs before and after training, and the "
-            "rank-biased overlap between each gene's neighbourhood at BPMF, SFT, and RL. "
-            "Broken out by the source of the initial embedding."),
+            "The effect of training on embedding geometry differs dramatically by embedding "
+            "type. BPMF embeddings show near-perfect preservation of gene neighborhoods, while "
+            "other initializations undergo substantial reorganization during supervised "
+            "pretraining."),
         section="Figure 14 &middot; Appendix D",
         paper_pdf="gene_embedding_drift_by_source.pdf",
         module="assayloop.scripts.plot_embedding_drift_by_source",

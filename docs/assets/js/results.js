@@ -13,25 +13,21 @@
     { key: "display", label: "Method", type: "text", align: "left",
       title: "Method name as it appears in the paper's table." },
     { key: "ef", label: "EF", digits: 2, arrow: "↑",
-      title: "Enrichment factor: hit rate relative to a random pick, domain-adjusted." },
+      title: "Hits found divided by the number expected from random selection, using the effective budget of in-library and invalid acquisitions." },
     { key: "nauc", label: "nAUC (%)", digits: 1, scale: 100, arrow: "↑",
-      title: "Domain-adjusted normalized area under the recovery curve." },
+      title: "Area under the cumulative-hits curve, normalized by a perfect hits-first oracle over the same effective budget." },
     { key: "frac", label: "FH (%)", digits: 1, scale: 100, arrow: "↑",
-      title: "Fraction of the screen's hits found within the budget." },
+      title: "Fraction of all hits in the screen recovered within the acquisition budget." },
     { key: "shortfall", label: "SF (%)", digits: 1, scale: 100, arrow: "↓",
-      title: "Shortfall: fraction of picks outside the screen's library." },
+      title: "Fraction of acquired genes outside the screen's measured gene library." },
     { key: "pct_ess", label: "%ess", digits: 1, scale: 100,
-      title: "Fraction of picks that are DepMap common-essential genes. Neither high nor low is good on its own." },
-    // The EP vocabulary is Reactome's 186 level-2 groups, not the GMT's 2012
-    // leaf sets: at leaf resolution 30 genes drawn one pathway each never
-    // collide, so EP-B was pinned just under its own reference count for every
-    // method. Uniform-draw reference values are 21.8 / 56.4 / 82.1.
+      title: "Percentage of acquired hits that are DepMap common-essential genes." },
     { key: "ep_b", label: "EP-B", digits: 1,
-      title: "Effective Reactome level-2 pathway groups per batch, rarefied to 30 annotated genes (uniform draw: 21.8). A dash means the method fell below the retention floor." },
+      title: "Effective number of Reactome level-2 pathway groups in one acquisition batch, subsampled to 30 annotated genes." },
     { key: "ep_s", label: "EP-S", digits: 1,
-      title: "Effective pathway groups per screen, rarefied to 200 annotated genes (uniform draw: 56.4)." },
+      title: "Effective number of Reactome level-2 pathway groups across all picks in one screen, subsampled to 200 annotated genes." },
     { key: "ep_d", label: "EP-D", digits: 1,
-      title: "Effective pathway groups across the whole test set, rarefied to 6000 annotated genes (uniform draw: 82.1)." },
+      title: "Effective number of Reactome level-2 pathway groups across all picks in the test set, subsampled to 6,000 annotated genes." },
   ];
 
   // The rows the page argues from, by their full name in the JSON. Every
@@ -58,6 +54,10 @@
     if (col.type === "text") return v;
     if (v === null || v === undefined) return null;
     return col.scale ? v * col.scale : v;
+  }
+
+  function isAblationRow(row) {
+    return row.family === "ablation" || row.display === "- hit labels";
   }
 
   function renderHead() {
@@ -90,7 +90,7 @@
   function visibleRows() {
     const q = state.search.trim().toLowerCase();
     return state.rows.filter((r) => {
-      if (state.ablations === "hide" && r.family === "ablation" && !state.family) return false;
+      if (state.ablations === "hide" && isAblationRow(r)) return false;
       if (state.family && r.family !== state.family) return false;
       // Matched against the raw name, not the rendered one: the page shows a
       // real minus sign but nobody types U+2212 into a search box.
@@ -249,7 +249,7 @@
     for (const col of COLUMNS) {
       if (col.type === "text") continue;
       const li = document.createElement("li");
-      li.innerHTML = `<strong>${col.label}</strong> — ${col.title}`;
+      li.innerHTML = `<strong>${col.label}:</strong> ${col.title}`;
       notes.appendChild(li);
     }
 

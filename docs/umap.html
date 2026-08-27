@@ -4,8 +4,8 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Gene embeddings — AssayLoop</title>
-<meta name="description" content="The K=10 BPMF gene embedding as an interactive scatter: colour by HDBSCAN cluster, hit rate, DepMap essentiality, CORUM complex family, or Reactome pathway, and search for a gene."/>
-<link rel="stylesheet" href="assets/css/site.css?v=b5266bb0"/>
+<meta name="description" content="The K=10 BPMF gene embedding as an interactive scatter: colour by HDBSCAN cluster, hit rate, DepMap essentiality, CORUM complex family, or broad Reactome category, and search for a gene."/>
+<link rel="stylesheet" href="assets/css/site.css?v=4b58e340"/>
 <script src="https://cdn.plot.ly/plotly-2.32.0.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -16,11 +16,9 @@
     <p class="kicker">Figure 11, interactive</p>
     <h1>What the model learned about genes</h1>
     <p class="lede">
-      BPMF factorises the screen &times; gene hit matrix into a 10-dimensional gene embedding. The
-      paper shows it as three static panels; here it is one scatter you can recolour. The point the
-      figure makes is a negative one, and it is easier to see by switching between colourings than
-      by comparing three pictures: the space organises by <em>phenotype</em> and co-essentiality,
-      not by physical complex or textbook pathway.
+      BPMF factorises the screen &times; gene hit matrix into a 10-dimensional gene embedding. Here,
+      the space organises by phenotype and co-essentiality, not by physical complex or textbook
+      pathway.
     </p>
 
     <div class="controls" id="controls">
@@ -31,7 +29,7 @@
           <option value="hit_rate">Hit rate</option>
           <option value="essential">DepMap common-essential</option>
           <option value="complex">CORUM complex family</option>
-          <option value="pathway">Reactome pathway (top 10)</option>
+          <option value="pathway">Reactome top-level category</option>
         </select>
       </div>
       <div class="control">
@@ -49,22 +47,32 @@
     <p id="found" class="chart-status"></p>
 
     <section>
-      <h2>How to read it</h2>
+      <h2>What each coloring reveals</h2>
+      <p>
+        The paper visualizes the <em>K</em> = 10 embeddings with PCA on the left and cosine UMAP on
+        the right. This interactive version uses the UMAP view and lets you switch among the same
+        biological annotations.
+      </p>
       <ul class="bullets">
-        <li><strong>Coordinates.</strong> UMAP with a cosine metric on the K = 10 posterior-mean
-          gene factors, at the same seed as the paper figure, so a gene sits where the figure puts
-          it. The axes have no units and no meaning individually &mdash; only proximity does.</li>
-        <li><strong>Clusters are found in the original space</strong>, not in the projection.
-          HDBSCAN runs on the 10-dimensional embedding with a minimum cluster size of 150; the
-          projection is only how they are drawn. That is why cluster colour looks clean here: it is
-          not circular.</li>
-        <li><strong>Hit rate</strong> is a gene's hits divided by the number of public training
-          screens it appears in. Genes in few screens have a noisy rate, which is what the
+        <li><strong>HDBSCAN clusters.</strong> Genes are grouped using their original
+          10-dimensional embeddings, before they are projected into this two-dimensional view.
+          HDBSCAN uses a minimum cluster size of 150, and each cluster is labeled by the screen
+          phenotype most strongly associated with it. Several clusters are associated with the
+          DNA-damage response without being further disambiguated.</li>
+        <li><strong>CORUM complex families.</strong> Colors show the largest coarse families of
+          physical protein complexes, with smaller families pooled into <em>other</em>. Their weak
+          spatial grouping shows that physical-complex membership does not organize this embedding
+          particularly well.</li>
+        <li><strong>Reactome categories.</strong> Colors show broad, top-level Reactome categories
+          rather than hundreds of specific pathways. Apart from the common-essential region, they
+          show little distinct spatial clustering.</li>
+        <li><strong>Hit rate.</strong> A gene's hit rate is its hits divided by the number of public
+          training screens it appears in. Genes in few screens have a noisy rate, which is what the
           <em>minimum screens present</em> filter is for.</li>
-        <li><strong>Blank annotations are a category, not missing data.</strong> Most genes are in
-          no CORUM family and in no Reactome set of 10&ndash;150 genes. Those points are drawn in
-          grey and counted in the legend as <em>unassigned</em> rather than dropped, because
-          dropping them would make the annotation look far more complete than it is.</li>
+        <li><strong>Common-essential genes.</strong> The DepMap coloring highlights genes required
+          across many cell lines, revealing the common-essential region referred to above.</li>
+        <li><strong>Grey points remain visible.</strong> Genes without a CORUM family or assigned
+          Reactome category are shown as <em>unassigned</em>, rather than dropped.</li>
       </ul>
       <p id="meta" class="chart-status"></p>
     </section>
@@ -74,21 +82,32 @@
 
       <h2 id="init">Which embedding is worth starting from?</h2>
       <p>
-        The obvious way to initialise gene representations is with something that already knows
-        biology &mdash; a language-model embedding of each gene's literature, or a Perturb-seq
-        expression profile. Scored against STRING, CORUM, SIGNOR, and Reactome, those embeddings do
-        recover textbook gene&ndash;gene relationships best. They are also the harder ones to train
-        AssayFormer on. Initialising from the historical hit matrix instead, which knows nothing
-        about pathways, works better for picking genes.
+        <strong>Recovering textbook biology does not predict task usefulness.</strong> For each
+        initial embedding, cosine similarity is used to score gene&ndash;gene relationships from four
+        established databases: STRING, CORUM, SIGNOR, and Reactome. A gene pair is labeled positive
+        when its relationship appears in the database and negative otherwise. AUROC is calculated
+        for each database and then averaged across all four. Surprisingly, embeddings that recover
+        these databases most closely, such as GenePT and K562, are harder to train AssayFormer on.
+        Initializations learned directly from historical screen data, such as matrix factorization,
+        are the most useful for the downstream task.
       </p>
       <div class="plot" id="init-story"></div>
 
-      <h2 id="drift">And it barely moves afterwards</h2>
+      <h2 id="drift">How training changes the embeddings</h2>
       <p>
-        Comparing gene&ndash;gene cosine similarities before and after training, and the
-        rank-biased overlap between each gene's neighbourhood at BPMF, after SFT, and after RL: the
-        BPMF-initialised embedding stays close to where it started. Training is mostly learning how
-        to use the geometry, not rebuilding it.
+        <strong>Initialized BPMF embeddings barely change during training.</strong> In the BPMF
+        row, each point in the left panel represents one of 300,000 randomly sampled gene pairs.
+        Its horizontal position is the pair's cosine similarity before training, and its vertical
+        position is the pair's cosine similarity after RL. The right panel measures rank-biased
+        overlap (RBO) between each gene's 100 nearest neighbors before and after SFT, from SFT to
+        RL, and from initialization to RL. Most BPMF gene neighborhoods change very little during
+        SFT, and RL produces almost no additional change.
+      </p>
+      <p>
+        <strong>Other initializations can reorganize substantially.</strong> The full figure shows
+        that embedding drift depends strongly on the source: BPMF nearly preserves its original
+        gene neighborhoods, while several other initialization types change markedly during
+        supervised training.
       </p>
       <!-- A 7x2 panel column, so it is tall whatever we do: the cap trades
            scroll length against being able to read the axes at all. 560px put
@@ -101,8 +120,8 @@
 
 <div id="site-footer"></div>
 <script src="assets/js/site.js?v=e7f8b5b1" data-build="8787e112"></script>
-<script src="assets/js/figure-strip.js?v=6937cd20"></script>
-<script src="assets/js/umap.js?v=6de15a78"></script>
+<script src="assets/js/figure-strip.js?v=71525d3c"></script>
+<script src="assets/js/umap.js?v=65ceea75"></script>
 <script src="assets/js/init-story.js?v=fe9d07da"></script>
 </body>
 </html>

@@ -211,27 +211,20 @@
     if (name) renderOne(node, name); else renderGrid(node);
     wire(node);
 
-    const shared =
-      `Each ring is one method's picks over the 20 test screens, weighted so ` +
-      `every gene counts once and split across the Reactome pathways it ` +
-      `belongs to. The inner ring is the eight largest top-level categories ` +
-      `plus everything else; the outer ring breaks each into its level-2 ` +
-      `groups, with the small ones pooled. The number at the centre is EP-D, ` +
-      `the effective pathway count at dataset scope. Hover a wedge to name ` +
-      `it; click a category to zoom in, click the centre to zoom back out.`;
+    const instructions =
+      `The number at the centre is EP-D, the effective pathway count at ` +
+      `dataset scope. Hover a wedge to name it; click a category to zoom in, ` +
+      `click the centre to zoom back out.`;
 
     if (!name) {
-      caption.innerHTML =
-        `<span class="label">All six methods.</span> A colour means the same ` +
-        `category in every panel, so the panels are directly comparable. ` +
-        shared;
+      caption.innerHTML = instructions;
       return;
     }
     const m = DATA.methods[name];
     caption.innerHTML =
       `<span class="label">${S.methodLabel(name)}.</span> ` +
       `${m.n_annotated.toLocaleString()} of ${m.n_picks.toLocaleString()} ` +
-      `picks are annotated in Reactome. ` + shared;
+      `picks are annotated in Reactome. ` + instructions;
   }
 
   async function init() {

@@ -2,9 +2,10 @@
 //
 // Reads assets/data/gene_umap.json, written by docs/build_umap.py. Every gene
 // in that file is drawn. Points whose annotation is blank are drawn grey and
-// labelled "unassigned" rather than filtered out -- for CORUM and Reactome
-// that is most of the space, and hiding them would make the annotation look
-// far more complete than it is, which is the opposite of the figure's point.
+// labelled "unassigned" rather than filtered out. Hiding them would make the
+// annotation look far more complete than it is, which is the opposite of the
+// figure's point. Reactome pathways are rolled up to broad top-level categories
+// by build_umap.py so the specific-pathway long tail does not dominate "other".
 
 (function () {
   const S = window.AssayLoop;
@@ -14,7 +15,7 @@
   const COLOURINGS = {
     cluster_label: { kind: "category", label: "HDBSCAN cluster" },
     complex: { kind: "category", label: "CORUM complex family" },
-    pathway: { kind: "category", label: "Reactome pathway" },
+    pathway: { kind: "category", label: "Reactome top-level category" },
     hit_rate: { kind: "continuous", label: "Hit rate" },
     essential: { kind: "boolean", label: "DepMap common-essential" },
   };
@@ -60,7 +61,7 @@
     ];
     if (g.essential) parts.push("DepMap common-essential");
     if (g.complex) parts.push(`CORUM: ${g.complex}`);
-    if (g.pathway) parts.push(`Reactome: ${shortLabel(g.pathway)}`);
+    if (g.pathway) parts.push(`Reactome category: ${shortLabel(g.pathway)}`);
     return parts.join("<br>");
   }
 
@@ -226,7 +227,7 @@
   async function init() {
     const status = document.getElementById("status");
     try {
-      DATA = await S.fetchJSON("assets/data/gene_umap.json");
+      DATA = await S.fetchJSON("assets/data/gene_umap.json?v=3cc85e8f");
     } catch (err) {
       S.showError(status, err);
       return;

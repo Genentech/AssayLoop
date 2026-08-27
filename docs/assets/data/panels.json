@@ -4,13 +4,13 @@
       "image": "assets/figures/figure1.png",
       "pdf": "assets/figures/figure1.pdf",
       "width": 1566,
-      "height": 560
+      "height": 559
     },
     "ef_metrics": {
       "image": "assets/figures/ef_metrics.png",
       "pdf": "assets/figures/ef_metrics.pdf",
       "width": 2221,
-      "height": 1386
+      "height": 1385
     },
     "pipeline": {
       "image": "assets/figures/pipeline.png",
@@ -24,7 +24,7 @@
       "key": "pipeline_panel_a",
       "letter": "A",
       "title": "From screens to a decision problem",
-      "caption": "AssayBench-Loop turns 1,920 historical CRISPR screens into a sequential decision problem. A method sees the screen description and must rank the genes it wants assayed next; the split is chronological, so the twenty test screens were run after everything in training.",
+    "caption": "AssayBench-Loop turns 1,920 historical CRISPR screens into a lab-in-the-loop approach. A method sees the screen description and must rank the genes it wants assayed next; the data split is chronological, so the test split reflects the changing taste of scientists over time.",
       "image": "assets/figures/pipeline_panel_a.png",
       "width": 978,
       "height": 384
@@ -33,7 +33,7 @@
       "key": "pipeline_panel_b",
       "letter": "B",
       "title": "What the splits contain",
-      "caption": "The five broad phenotype families, across the train, validation and test splits. The test screens are deliberately not drawn in the training proportions.",
+    "caption": "The five broad phenotype families, across the train, validation and test splits. The validation and test split were selected to have broad phenotypic coverage and screen diversity, have ground truth for most genes (&gt; 18k), and have sufficient signal (&gt; 50 hits and &lt; 15% hits).",
       "image": "assets/figures/pipeline_panel_b.png",
       "width": 512,
       "height": 384
@@ -42,7 +42,7 @@
       "key": "pipeline_panel_c",
       "letter": "C",
       "title": "Initialising the gene embeddings",
-      "caption": "Gene embeddings are initialised by Bayesian probabilistic matrix factorisation of the historical hit matrix &mdash; a Gibbs posterior over the screen and gene factors, averaged into one vector per gene.",
+    "caption": "First, gene embeddings are initialised by applying Bayesian probabilistic matrix factorisation to the screen x gene hit matrix. Notably, we find this particular gene embedding initialization to be important for downstream performance",
       "image": "assets/figures/pipeline_panel_c.png",
       "width": 570,
       "height": 420
@@ -51,7 +51,7 @@
       "key": "pipeline_panel_d",
       "letter": "D",
       "title": "AssayFormer, trained supervised",
-      "caption": "AssayFormer scores every untested gene from the screen embedding and the genes already assayed with their outcomes. Supervised training is a per-gene binary cross-entropy against the observed hit labels.",
+    "caption": "AssayFormer is a encoder-only transformer model which accepts the screen embedding and the already-assayed genes with their outcomes as input. Scoring is done using a bilinear scoring head, and produces a score for every untested gene. Gene embeddings come from BPMF initialization. Supervised finetuning is done on the training screens using a per-gene binary cross-entropy against the observed hit labels, given a randomly selected context of other genes from the screen.",
       "image": "assets/figures/pipeline_panel_d.png",
       "width": 918,
       "height": 420
@@ -60,7 +60,7 @@
       "key": "pipeline_panel_e",
       "letter": "E",
       "title": "Reinforcement learning on the context delta",
-      "caption": "RL fine-tuning with GRPO over eight full-screen rollouts. The reward is a context delta: hits found by the policy that can see the history, minus hits found by a frozen copy that cannot. Picking well from prior knowledge alone earns nothing &mdash; only using the feedback pays.",
+    "caption": "Next, RL fine-tuning with GRPO is applied to the model with eight full-screen rollouts. To sample different trajectories for each rollout, we use the Gumbel top-k sampling trick. We use a context delta approach as our reward: hits found by the policy that can see the history, minus hits found by a frozen copy that cannot. This encourages the model to learn how to leverage the context to outperform the frozen context-free model.",
       "image": "assets/figures/pipeline_panel_e.png",
       "width": 900,
       "height": 525
@@ -69,7 +69,7 @@
       "key": "pipeline_panel_f",
       "letter": "F",
       "title": "Three ways to pick the next genes",
-      "caption": "Three paradigms. Single-screen active learning adapts within one assay but starts cold; amortized transfer learns how to adapt from a thousand previous assays; LLMs bring literature-scale priors but weak in-context learning.",
+    "caption": "This panel shows three paradigms for sequential experimental design on screens. Single-screen active learning adapts within one assay but starts cold. Amortized transfer learns how to adapt from previous screens (our approach). LLMs bring literature-scale priors but weak in-context learning.",
       "image": "assets/figures/pipeline_panel_f.png",
       "width": 588,
       "height": 525
@@ -78,7 +78,7 @@
       "key": "pipeline_panel_g",
       "letter": "G",
       "title": "The handoff",
-      "caption": "AssayLoop combines the last two. An LLM ranks the first rounds from prior knowledge, then hands the screen to AssayFormer once enough assay-specific evidence has accumulated for in-context adaptation to beat the prior.",
+    "caption": "AssayLoop combines the benefits of an amortized model and LLM priors. An LLM ranks the first rounds from prior knowledge, then hands the results to AssayFormer once enough assay-specific evidence has accumulated for in-context adaptation to beat the prior.",
       "image": "assets/figures/pipeline_panel_g.png",
       "width": 828,
       "height": 558
@@ -87,7 +87,7 @@
       "key": "pipeline_panel_h",
       "letter": "H",
       "title": "What it recovers",
-      "caption": "Held-out recovery curves. AssayLoop finds 27.7% of hits within an effective 5% of the library, an enrichment factor of 5.66 over a uniform draw.",
+    "caption": "Held-out recovery curves. AssayLoop finds 27.7% of hits within an effective 5% of the library, an enrichment factor of 5.66 over a random model.",
       "image": "assets/figures/pipeline_panel_h.png",
       "width": 662,
       "height": 558

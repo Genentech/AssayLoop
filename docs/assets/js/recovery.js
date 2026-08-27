@@ -22,8 +22,7 @@
       label: "Fraction of hits recovered", tickformat: ".0%", digits: 3,
       hover: (v) => (v * 100).toFixed(1) + "%",
       chance: "a uniform draw of the same number of genes from the same pool, " +
-              "which scores EF 1 by definition. Anything above it is beating " +
-              "chance in the sense the results table's EF column means.",
+              "which scores EF 1 by definition. Anything above it will have an EF &gt; 1.",
     },
     cum_hits: {
       mean: "cum_hits", screen: "cum_hits",
@@ -66,7 +65,7 @@
   ];
 
   const state = { metric: "frac_hits", view: "mean", screen: null,
-                  band: "sem", family: "", selected: [] };
+                  band: "none", family: "", selected: [] };
   let MEAN = null, BY_SCREEN = null;
 
   //: Methods that proposed substantially more genes than their budget allowed,

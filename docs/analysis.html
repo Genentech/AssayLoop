@@ -4,8 +4,8 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Analysis — AssayLoop</title>
-<meta name="description" content="What the models actually learned: round-by-round composition of a handoff, the pathways each LLM over-picks, and what observing one gene as a hit does to AssayFormer's predictions for the others."/>
-<link rel="stylesheet" href="assets/css/site.css?v=b5266bb0"/>
+<meta name="description" content="How Gemini and AssayFormer behave on two distinct screens, which biology LLMs favor, and how observed hits change AssayFormer's predictions."/>
+<link rel="stylesheet" href="assets/css/site.css?v=4b58e340"/>
 <script src="https://cdn.plot.ly/plotly-2.32.0.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -16,34 +16,50 @@
     <p class="kicker">Qualitative analysis</p>
     <h1>What the models learned</h1>
     <p class="lede">
-      The enrichment factor says which method found more hits. It does not say what either of them
-      was doing. These three analyses open up the picks themselves: how a handoff's composition
-      changes at the moment the LLM gives way to the policy, which parts of the cell each LLM
-      reaches for, and what learning that one gene is a hit does to AssayFormer's predictions for
-      every other gene.
+      The enrichment factor says which method found more hits. It does not say how these methods
+      did that. We dig into two distinct screens to understand the difference between Gemini and
+      AssayFormer, as well as how they combine.
     </p>
 
-    <h2 id="handoff">Composition of a handoff, round by round</h2>
+    <h2 id="handoff">How Gemini and AssayFormer differ across two screens</h2>
     <p>
-      Two screens with very different biology &mdash; an NF-&kappa;B / TNF signalling screen and an
-      AAV transgene silencing screen &mdash; run three ways: AssayFormer alone, Gemini-3.1-Pro
-      alone, and the handoff between them. The upper histogram is what each round proposed; the
-      lower one is what hit. The handoff's early rounds look like the LLM's and its late rounds
-      look like the policy's, which is the mechanism working as designed.
+      The figure follows an NF-&kappa;B / TNF signaling screen on the left and an AAV transgene
+      silencing screen on the right. Each screen is run with AssayFormer, Gemini-3.1-Pro, and the
+      AssayLoop handoff from Gemini to AssayFormer. Within each panel, the upper histogram shows
+      the Reactome composition of the genes proposed in each round; the lower histogram shows the
+      pathways represented among the hits. For example, DNA repair is the largest category in
+      AssayFormer's first proposed batch for the AAV screen.
     </p>
+    <ul class="bullets">
+      <li>Gemini and AssayFormer begin with substantially different pathway compositions.</li>
+      <li>Gemini finds more hits in the first three rounds, but its yield drops afterward.</li>
+      <li>When AssayFormer takes over after round three, it proposes a different set of genes that
+        contains more hits.</li>
+      <li>AssayFormer proposes more genes in the <em>Other</em> category, consistent with Gemini
+        favoring better-known genes and pathways.</li>
+      <li>Gemini does not always use the full 100-gene acquisition budget.</li>
+    </ul>
     <div data-figures="rollout_composition"></div>
 
     <hr class="section-divider"/>
 
-    <h2 id="pathways">Which biology each LLM reaches for</h2>
+    <h2 id="pathways">LLMs converge on similar biological programs</h2>
     <p>
-      Top-level Reactome composition of the genes each model requested, pooled over the 20 test
-      screens, as a ratio against the share a uniform draw from the candidate universe would give.
-      Above 1 is over-representation. The striking result is how similar the frontier models are to
-      each other: they converge on much the same picture of what a CRISPR screen is about,
-      regardless of the phenotype in the prompt. The
-      <a href="diversity.html">diversity explorer</a> quantifies the same effect as effective
-      pathway counts.
+      The heatmap aggregates every requested gene across the 20 test screens and assigns it to a
+      top-level Reactome pathway. We calculate a random baseline as the composition expected from
+      uniform sampling over the full candidate universe. Each cell compares a model's observed
+      pathway share with that random expectation: orange is over-represented, blue is
+      under-represented, and the color scale is capped from 0.5&times; to 2&times;.
+    </p>
+    <p>
+      The LLMs have strikingly similar acquisition signatures. They favor RNA and protein
+      metabolism while under-representing bulk metabolism and developmental biology. Differences
+      among LLMs are small compared with their differences from methods such as kNN, and their
+      effective pathway counts fall in a narrow range. Kimi-K2.6 and Claude Opus-4.8 also request
+      fewer unique genes because they often return fewer than the requested 100 genes, possibly
+      reflecting constraints from biological safety training. Hover any cell to see its raw
+      pathway share, EP-D, total unique genes, and percentage of Reactome-annotated picks. The
+      <a href="diversity.html">diversity explorer</a> explains effective pathways in more detail.
     </p>
     <div class="plot" id="pathway-heatmap"></div>
     <p class="figure-caption" id="pathway-heatmap-caption"></p>
@@ -52,23 +68,31 @@
 
     <h2 id="influence">What one hit tells AssayFormer about the rest</h2>
     <p>
-      AssayFormer conditions on the genes already assayed and their outcomes, so it is possible to
-      ask directly what one observation does to another prediction: fix a probe gene, observe it as
-      a hit, and measure how every other gene's predicted hit probability moves, averaged over
-      random background contexts. The result is a learned, context-conditional influence map. Some
-      of the strongest pairs are in no standard interaction database.
+      For a probe gene and a target gene, influence is the change in AssayFormer's predicted score
+      for the target when the probe is added to the context as a hit. The interactive matrix uses
+      12 canonical cancer drivers as probes and 19 representative functional-module genes, plus
+      ATM, as targets. Orange means the observation raises the target score; blue means it lowers
+      it.
     </p>
     <p>
-      The rows are twelve canonical cancer drivers used as probes; the columns are every gene the
-      paper singles out as a response, which is nineteen functional-module genes plus ATM &mdash;
-      ATM is on both axes, as a driver in its own right and as the response to PIK3CA.
+      In the full analysis, influences among cancer drivers are generally weak, consistent with
+      these genes acting through distinct pathways such as RTK/RAS, PI3K, p53, Wnt, TGF-&beta;, and
+      homologous-recombination repair. The strongest effects occur within functional modules whose
+      members co-vary, including ribosome biogenesis, mitochondrial complex I and Fe-S assembly,
+      and mRNA decapping. Influence is also directional rather than symmetric: the correlation
+      between the matrix and its transpose is only 0.16, and 44% of reciprocal pairs have opposite
+      signs. For example, observing MDM2 raises PFDN4 by 0.33, whereas observing PFDN4 lowers MDM2
+      by 0.46.
     </p>
     <div class="plot" id="influence-matrix"></div>
     <p class="figure-caption" id="influence-matrix-caption"></p>
 
+    <h3>Potential relationships beyond canonical annotations</h3>
     <p>
-      Scored against curated interaction databases, the strongest of these pairs are not the ones
-      those databases already know about. The paper's own rendering of the highlighted pairs:
+      To focus on hypothesis generation, we remove gene pairs already represented in STRING,
+      CORUM, SIGNOR, or Reactome and examine the strongest remaining positive and negative
+      influences. Figure 9 summarizes the resulting candidate relationships and the biological
+      evidence that makes them testable.
     </p>
     <div data-figures="influence"></div>
   </div>
@@ -76,7 +100,7 @@
 
 <div id="site-footer"></div>
 <script src="assets/js/site.js?v=e7f8b5b1" data-build="8787e112"></script>
-<script src="assets/js/figure-strip.js?v=6937cd20"></script>
-<script src="assets/js/analysis.js?v=9d736877"></script>
+<script src="assets/js/figure-strip.js?v=71525d3c"></script>
+<script src="assets/js/analysis.js?v=6fb76cfc"></script>
 </body>
 </html>

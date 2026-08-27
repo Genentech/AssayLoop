@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Citation — AssayLoop</title>
 <meta name="description" content="How to cite AssayLoop, AssayBench, and the data sources behind them."/>
-<link rel="stylesheet" href="assets/css/site.css?v=b5266bb0"/>
+<link rel="stylesheet" href="assets/css/site.css?v=4b58e340"/>
 </head>
 <body>
 <div id="site-header"></div>
@@ -46,7 +46,7 @@
 
     <h2>AssayBench</h2>
     <p>
-      The screen corpus, the dataset splits, and the ranking metrics come from AssayBench.
+      The screen corpus and metadata come from AssayBench.
     </p>
     <div class="bibtex">@article{de2026assaybench,
   title   = {AssayBench: An Assay-Level Virtual Cell Benchmark for LLMs and Agents},
@@ -90,16 +90,19 @@
         network-recovery analysis. CC BY 4.0 at these pinned versions.</li>
       <li><strong>DepMap</strong> — common-essential gene list, used for the %essential column.
         CC BY 4.0, Broad Institute.</li>
-      <li><strong>PRESAGE</strong> — gene embeddings used by several baselines. Fetched by the
-        download script; nothing is redistributed here.</li>
+      <li><strong>PRESAGE</strong> — gene embeddings used by several baselines.</li>
     </ul>
 
     <h2>Checkpoints and released artifacts</h2>
-    <p>
-      Trained AssayFormer and BPMF checkpoints, the published sweep bundle, and the recorded LLM
-      calls are linked from the repository README. They are downloaded on request — the code never
-      substitutes a different artifact when one is missing.
-    </p>
+    <ul class="bullets">
+      <li><a href="https://huggingface.co/Genentech/assayformer">AssayFormer checkpoint</a></li>
+      <li><a href="https://huggingface.co/collections/Genentech/assaybench">Models and data on
+        Hugging Face</a></li>
+      <li><a href="https://github.com/Genentech/AssayLoop/releases/download/data-v1/assayloop-sweeps-v1.tar.gz">Published
+        sweep bundle</a></li>
+      <li><a href="https://github.com/Genentech/AssayLoop/releases/download/data-v1/assayloop-llm-calls-v1.tar.gz">Recorded
+        LLM calls</a></li>
+    </ul>
   </div>
 </main>
 

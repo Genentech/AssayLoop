@@ -683,7 +683,12 @@ def build_pathway_heatmap(path: Path) -> dict:
         hover.append(hrow)
     return {"schema": 1, "categories": cats, "methods": methods,
             "z": z, "hover": hover,
-            "eff_pathways": {m: raw[m]["eff_pathways"] for m in methods}}
+            "eff_pathways": {m: raw[m]["eff_pathways"] for m in methods},
+            "unique_genes": {m: raw[m]["n_unique"] for m in methods},
+            "annotated_fraction": {
+                m: raw[m]["n_annotated"] / max(raw[m]["n_picks"], 1)
+                for m in methods
+            }}
 
 
 def build_lopo(path: Path) -> dict:

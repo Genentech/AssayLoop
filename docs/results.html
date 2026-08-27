@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>Results — AssayLoop</title>
 <meta name="description" content="The full AssayLoop results table: enrichment factor, nAUC, fraction of hits, shortfall, essentiality, and effective pathway coverage for every method in the paper."/>
-<link rel="stylesheet" href="assets/css/site.css?v=b5266bb0"/>
+<link rel="stylesheet" href="assets/css/site.css?v=4b58e340"/>
 <script src="https://cdn.plot.ly/plotly-2.32.0.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -62,24 +62,28 @@
 
     <hr class="section-divider"/>
 
-    <h2 id="lopo">Does it generalise to phenotypes it never saw?</h2>
-    <p>
-      The main table trains and tests on a chronological split, so every broad phenotype family is
-      represented on both sides of it. A harder question is whether the policy has learned
-      something about acquisition or merely about the phenotypes in its training set. Leave one of
-      AssayBench's five broad phenotypes out of training entirely, then evaluate on it. Supervised
-      training already beats a gene-level kNN baseline, and RL improves on that again.
-    </p>
-    <div class="plot" id="lopo-chart"></div>
-    <p class="figure-caption" id="lopo-caption"></p>
+    <h2 id="lopo">Does it generalize to phenotypes it never saw?</h2>
+    <div data-figures="lopo"></div>
 
     <h2 id="scaling">Scaling</h2>
     <p>
-      What buys performance here is screens, not parameters. Training AssayFormer on 1 through all
-      1,349 training screens improves both the supervised and the RL policy throughout, with RL
-      above SFT at every scale. The gain concentrates in the first few acquisition rounds &mdash;
-      by ten thousand genes sampled, even a random policy has found most of the hits, so there is
-      nothing left to be better at.
+      <strong>Performance scales with data, but not model size.</strong> AssayFormer models
+      (without input screen descriptions) are trained to identify scaling of in-context learning
+      capabilities. <strong>Top:</strong> Models are trained on varying amounts of data from 1 to
+      all training screens, and average performance curves are plotted. Both SFT and RL show this
+      performance increase, with RL boosting SFT performance. <strong>Top left plot:</strong> EF at
+      <em>k</em> acquisition steps shows that scaling is most effective during the first few steps
+      of the experiment. At 100 steps (10,000 genes sampled), models approach similar performance.
+      This is expected because even a random model will find all hits if it samples the entire
+      genome. <strong>Top right plot:</strong> Budget to acquire enough hits to satisfy a recall
+      threshold <em>m</em>. For example, to find <em>m</em> = 50% of the hits, the &lsquo;1349&rsquo;
+      model requires sampling less than 30% of the full genome. Note that RL rollouts stop at 10
+      steps during training, so these curves reflect out-of-distribution gains for RL performance.
+      <strong>Bottom:</strong> We also consider scaling model size from XS (0.28M parameters) to XL
+      (10.97M parameters), given the full training set. Here, we do not observe meaningful scaling
+      laws. We posit that larger pretraining datasets are required to show evidence of model
+      scaling. Note that scaling models has shown useful performance gains in pretrained LLMs on
+      the non-active learning setting of AssayBench (Figure 4).
     </p>
     <div data-figures="scaling"></div>
 
@@ -88,11 +92,10 @@
       Run the same ten-round loop twice: once with the previous rounds' hit labels in the prompt,
       and once with them stripped. The gap is a direct measurement of how much of a method's
       performance comes from adapting to the experiment rather than from its prior. Every LLM
-      family gains from the feedback and so do AssayFormer and AssayLoop &mdash; but the LLMs'
-      gains are small enough that the handoff is worth making.
+      family gains from the feedback, but their in-context learning ability is worse than
+      AssayFormer, which motivates the AssayLoop handoff.
     </p>
     <div class="plot" id="ablation-chart"></div>
-    <p class="figure-caption" id="ablation-caption"></p>
 
     <p class="footnote" id="dash">
       A dash in an EP column is a refusal to score, not a zero: a method whose picks are mostly
@@ -104,8 +107,8 @@
 
 <div id="site-footer"></div>
 <script src="assets/js/site.js?v=e7f8b5b1" data-build="8787e112"></script>
-<script src="assets/js/figure-strip.js?v=6937cd20"></script>
-<script src="assets/js/results.js?v=69ab5d6c"></script>
-<script src="assets/js/lopo.js?v=b4e0141e"></script>
+<script src="assets/js/figure-strip.js?v=71525d3c"></script>
+<script src="assets/js/results.js?v=286d2020"></script>
+<script src="assets/js/lopo.js?v=69505eca"></script>
 </body>
 </html>

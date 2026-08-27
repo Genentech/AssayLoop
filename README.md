@@ -25,10 +25,6 @@ cd assayloop
 uv sync --extra torch     # drop --extra torch for the CPU-only baselines and analysis
 ```
 
-Python 3.11+. Screens download from Hugging Face on first use. No API key is needed to run
-AssayFormer or to reproduce its numbers; you need one only for the LLM baselines, and only
-for the provider you call (set `ASSAYLOOP_LLM_PROVIDER` and that provider's key in `.env`).
-
 ## Quickstart
 
 ```bash
@@ -63,8 +59,7 @@ hits = [g for g, h in zip(screen.genes, screen.hits) if h]
 print(enrichment_factor(picked, screen.genes, hits, universe, budget=1000))   # 7.61
 ```
 
-Against this screen's own 18,385-gene library instead of the pool, the same checkpoint
-scores 6.96. The wider pool is the paper's setting and what `--full-genome` selects.
+No API key is needed to run AssayFormer or to reproduce its numbers.
 
 Training your own:
 
@@ -87,9 +82,8 @@ uv run assayloop eval-ranker-handoff \
     --checkpoint <rl-ckpt-dir> --ckpt-file model_last.pt \
     --warm-dir output/runs --warm-prefix sweep-<id>- --n 3
 ```
-
 The first `--n` rounds are replayed from that sweep, then AssayFormer continues with them as
-context.
+context. For the llm provider you set `ASSAYLOOP_LLM_PROVIDER` and that provider's key in `.env`.
 
 ## Screen sets
 
@@ -143,23 +137,6 @@ shortfall(picked, screen.genes)                                       # SF    0.
 percent_essential(picked, screen.genes, hits)                         # %ess  0.250
 ```
 
-| | What it measures | takes `universe` |
-|---|---|---|
-| EF | hits found vs. what uniform random would find, so 1.0 is chance | yes |
-| nAUC | how early in the ten rounds the hits arrived | yes |
-| FH | share of the screen's hits recovered inside the budget | no |
-| SF | share of picks that landed outside this screen's library | no |
-| %ess | share of the hits found that DepMap calls common-essential | no |
-
-`gene_universe(screens)` builds the f2 pool: the union of the twenty libraries kept to genes
-measured in at least two of them. It decides how an out-of-library pick is charged. Names
-inside the pool are forgiven and leave the effective budget; names outside it are charged as
-misses. Drawing from the pool as above, nothing can land outside it, so EF is the same here
-whether or not you pass it. The argument earns its keep on an open-vocabulary policy such as
-an LLM, which can name a string that is not a gene at all: omit it there and every invented
-name is forgiven too, which can only inflate EF. The same call feeds `universe_genes=` on a
-task, which is what `--full-genome` does.
-
 ## Your own method
 
 Implement `Model` (score the candidates) or `AcquisitionFunction` (choose from the scores)
@@ -210,8 +187,6 @@ To reach your method from the CLI, add a branch to `make_model` in
 | `bash scripts/fetch_gene_sets.sh` | MSigDB | `bio_ucb`, pathway metrics, the sunburst figure |
 | `bash scripts/fetch_ground_truth.sh` | STRING / CORUM / SIGNOR | network-recovery analysis |
 
-Nothing silently substitutes for a missing download. The code raises and names the fetch
-script.
 
 ## Reproducing the paper's table
 
@@ -221,11 +196,7 @@ uv run assayloop figure main-table --min-screen-freq 2
 uv run assayloop figure --list             # every paper figure, and what has to exist first
 ```
 
-The AssayFormer, BPMF, MAML and random rows re-run from a checkpoint. The LLM and
-external-baseline rows are ~400 paid API runs across nine vendors, published as the sweep
-bundle above. Nothing prints a dash for data you did not download; it raises and names the
-fetch script. [`README_DETAILED.md`](README_DETAILED.md) has the per-row commands, every
-baseline and acquisition, and the figure scripts.
+[`README_DETAILED.md`](README_DETAILED.md) has the per-row commands, every baseline and acquisition, and the figure scripts.
 
 ## Citation
 

@@ -119,6 +119,23 @@ python docs/build_figures.py --paper-dir /path/to/unzipped/paper
 This re-runs each paper figure's own script with `MPLBACKEND=Agg`, copies the
 PDF/SVG/PNG into `assets/figures/`, and writes `assets/data/figures.json`.
 
+The pathway sunburst can also be rebuilt by itself from the two release JSON
+artifacts; it does not require the original sweep directories or a Reactome
+download. On Converge, the exact CMU Serif build is:
+
+```bash
+module load matplotlib/3.9.2-gfbf-2024a-Python-3.12.3
+module load texlive/20240312-GCC-13.3.0-Python-3.12.3-Boost-1.91.0
+MPLCONFIGDIR=/tmp/assayloop-mpl python docs/plot_pathway_sunburst_release.py
+```
+
+The renderer checks every non-random EP-B, EP-S, and EP-D value against
+`results.json` before drawing. Its Random panel uses the published f2-universe
+reference, 21.8 / 56.4 / 82.1, so stale or incorrectly aggregated data fails
+loudly instead of yielding a plausible-looking figure. Each run writes both
+the one-row website figure (`pathway_sunburst.*`) and the 2 × 3 paper figure
+(`pathway_sunburst_appendix.*`).
+
 That JSON carries only what the browser renders — title, caption, the section
 of the paper the figure appears in, and the image. **The site is an
 introduction to the paper, not a lab notebook about it**, so the script paths,

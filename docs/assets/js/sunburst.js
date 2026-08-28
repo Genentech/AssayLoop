@@ -98,7 +98,7 @@
   }
 
   function epHole(name, x, y, size) {
-    return hole(DATA.methods[name].eff_pathways.toFixed(0), "EP-D", x, y, size);
+    return hole(DATA.methods[name].eff_pathways.toFixed(1), "EP-D", x, y, size);
   }
 
   /** The shared category key. Plotly draws no legend for a sunburst, and the
@@ -231,7 +231,7 @@
     const node = document.getElementById("sunburst");
     if (!node) return;
     try {
-      DATA = await S.fetchJSON("assets/data/sunburst.json");
+      DATA = await S.fetchJSON("assets/data/sunburst.json?v=114973ed");
     } catch (err) {
       S.showError(node, err);
       return;

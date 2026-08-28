@@ -48,7 +48,7 @@
    "title":"Biological pathway distribution of each method.",
    "caption":"Proposed genes categorised by Reactome pathway across six representative methods. Inner ring: the eight top-level Reactome categories plus a pooled remainder. Outer ring: Reactome's second tier. At the centre, the effective number of pathways &mdash; the count of equally-weighted pathways that would produce the same spread.",
    "section":"Figure 6 &middot; Results",
-   "image":"assets/figures/pathway_sunburst.svg",
+   "image":"assets/figures/pathway_sunburst.svg?v=ac97d4ea",
    "pdf":"assets/figures/pathway_sunburst.pdf"
   },
   {

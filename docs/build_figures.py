@@ -184,9 +184,14 @@ FIGURES = [
             "same spread."),
         section="Figure 6 &middot; Results",
         paper_pdf="pathway_sunburst.pdf",
-        module="assayloop.scripts.plot_pathway_sunburst",
+        # This release renderer consumes the two shipped website JSON files,
+        # validates their overlapping metrics, and therefore does not require
+        # the private sweep directories used by the original analysis script.
+        # It also writes a 2 x 3 pathway_sunburst_appendix companion for the paper.
+        module="docs.plot_pathway_sunburst_release",
+        args=["--output-stem", str(ANALYSIS / "pathway_sunburst")],
         stem="pathway_sunburst",
-        needs="the Reactome GMT (<code>scripts/fetch_gene_sets.sh</code>)",
+        needs="CMU Serif (on Converge, load the <code>texlive</code> module)",
     ),
     Figure(
         key="llm_pathway_heatmap",
@@ -551,7 +556,9 @@ def collect(fig: Figure, paper_dir: Path | None, cmd: list[str],
             f"{fig.key}: no SVG under {SVG_BUDGET} bytes and no PNG either, so "
             f"there is nothing to show on the card.")
 
-    module_path = f"{SRC_PREFIX}/{fig.module.rsplit('.', 1)[1]}.py"
+    module_path = (fig.module.replace(".", "/") + ".py"
+                   if fig.module.startswith("docs.")
+                   else f"{SRC_PREFIX}/{fig.module.rsplit('.', 1)[1]}.py")
     entry.update(
         script=module_path,
         script_url=f"{REPO_URL}/blob/main/{module_path}",

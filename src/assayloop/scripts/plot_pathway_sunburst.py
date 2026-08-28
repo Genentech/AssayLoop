@@ -184,17 +184,23 @@ def build_cache() -> dict:
     hier = load_hierarchy()
     cat_of, sub_of = hier["category_of"], hier["subcategory_of"]
     membership = _gmt_membership()          # leaf sets -- the rings
-    # ...and the level-2 vocabulary the table scores over -- the numbers. Same
-    # genes either way, so the annotated fraction and the Random panel's gene
-    # universe are unaffected by which one is used where.
+    # ...and the level-2 vocabulary the table scores over -- the numbers.
     from assayloop.metrics.effective_pathways import (
         M_BATCH, M_SCREEN, R_BATCH, R_SCREEN, effective_pathways, gmt_membership)
+    from assayloop.tasks import gene_universe, load_screens
     ep_membership = gmt_membership()
+    # Random is the expectation under the same f2 acquisition universe used by
+    # every evaluated method.  Using ``sorted(membership)`` here instead (the
+    # historical implementation) silently changes the population to every gene
+    # annotated by Reactome: 10,480 genes rather than the 21,147-gene candidate
+    # universe, and produces EP-D=80.4 instead of the published 82.1.
+    random_genes = gene_universe(load_screens(target_set="public"),
+                                 min_screen_freq=2)
 
     out = {}
     for title, prefix in METHODS:
         if prefix is None:
-            genes = sorted(membership)                       # gene universe = random expectation
+            genes = random_genes
             # No runs to batch up: a uniform draw of M_BATCH / M_SCREEN annotated
             # genes from the universe *is* the reference value at those scopes.
             ep_b = _rarefied_eff(genes, ep_membership, M_BATCH, R_BATCH, "batch")

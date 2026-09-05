@@ -77,7 +77,7 @@ uv run assayloop eval-ranker --checkpoint <ckpt-dir> --ckpt-file model_last.pt
 Collect the LLM warm start, then hand off to the ranker:
 
 ```bash
-uv run assayloop run --model null --acq llm_single --screen-set paper_test \
+uv run assayloop run --model null --acq llm_single --screen-set paper_test --full-genome \
     --lm-config configs/lm/collect-gemini-3.1-pro.yaml
 
 uv run assayloop eval-ranker-handoff \

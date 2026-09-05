@@ -10,7 +10,7 @@ Usage::
     python docs/build_figures.py --paper-dir /path/to/unzipped/paper
 
     # Just one, while iterating:
-    python docs/build_figures.py --only lopo scaling
+    python docs/build_figures.py --only scaling label_ablation
 
 ``--paper-dir`` is optional and only drives the reproduction check: each
 regenerated PDF is compared against the corresponding file in the paper's
@@ -99,7 +99,7 @@ FIGURES = [
             "experimental context, then improved with RL under a context-delta reward that "
             "pays only for using the feedback (C&ndash;E). Three paradigms for hit discovery "
             "(F); AssayLoop combines the second and third (G&ndash;H)."),
-        section="Figure 1 &middot; Introduction",
+        section="Figure 3 &middot; Methods",
         paper_pdf="assayloop-pipeline-paper-v6-native.pdf",
         note="Hand-drawn schematic. No script generates it. method.html shows "
              "it panel by panel from build_paper_panels.py.",
@@ -111,7 +111,7 @@ FIGURES = [
             "A screen is a library of genes, a phenotype, and a hit set. A method sees the "
             "phenotype and whatever it has already assayed, and must choose the next hundred "
             "genes. Ten rounds, then the score."),
-        section="Figure 2 &middot; Introduction",
+        section="Figure 1 &middot; Introduction",
         paper_pdf="assaybench-loop-figure1-v15.pdf",
         note="Hand-drawn schematic. No script generates it.",
     ),
@@ -122,33 +122,11 @@ FIGURES = [
             "Adjusted EF and nAUC, effective-budget terms, a worked comparison across "
             "hit-rich and hit-sparse screens, recovery trajectories, and the complementary "
             "diagnostics reported in the paper."),
-        section="Figure 3 &middot; Methods",
+        section="Supplementary Figure 6 &middot; Metrics",
         paper_pdf="assayloop-ef-metrics-v14.pdf",
         note="Hand-drawn schematic. No script generates it. "
              "The metric itself is <code>assaybench.benchmark.sequential."
              "enrichment_factor_from_value</code>.",
-    ),
-    Figure(
-        key="lopo",
-        title="Leave-one-phenotype-out (LOPO) generalization.",
-        caption=(
-            "For each phenotype, we compare models trained on all five phenotypes (dark bars) "
-            "with models trained on the remaining four (LOPO, light bars). AssayFormer "
-            "consistently outperforms Screen-kNN across all phenotypes and both training "
-            "regimes. Both methods lose performance under LOPO, but AssayFormer maintains "
-            "strong absolute performance across all held-out phenotypes, whereas Screen-kNN "
-            "degrades substantially on Fitness and Trafficking. The rightmost group shows "
-            "performance on the full test set for reference."),
-        section="Figure 4 &middot; Results",
-        paper_pdf="lopo_bar_chart.pdf",
-        module="assayloop.scripts.plot_lopo_results",
-        stem="lopo_bar_chart",
-        needs="LOPO sweep results",
-        # The supplied paper panel compares both methods with and without the
-        # phenotype held out. Keep the distinction explicit because rebuilding
-        # still depends on the separate LOPO sweep outputs.
-        note="The public artifact is the paper's four-series LOPO comparison. "
-             "Regenerating it requires the complete LOPO sweep outputs.",
     ),
     Figure(
         key="scaling",
@@ -158,7 +136,7 @@ FIGURES = [
             "with more screens, and RL sits above SFT throughout. The gain concentrates in the "
             "first few acquisition steps &mdash; by 20,000 genes sampled even a random policy "
             "has found most of the hits."),
-        section="Figure 5 &middot; Results",
+        section="Figure 4 / Supplementary Figure 10 &middot; Results",
         paper_pdf="scaling_combined_lines.pdf",
         module="assayloop.scripts.scaling_law_plot",
         # This one script writes 17 panels into its own subdirectory rather
@@ -182,7 +160,7 @@ FIGURES = [
             "Outer ring: Reactome's second tier. At the centre, the effective number of "
             "pathways &mdash; the count of equally-weighted pathways that would produce the "
             "same spread."),
-        section="Figure 6 &middot; Results",
+        section="Figure 5A / Supplementary Figure 7 &middot; Results",
         paper_pdf="pathway_sunburst.pdf",
         # This release renderer consumes the two shipped website JSON files,
         # validates their overlapping metrics, and therefore does not require
@@ -203,8 +181,8 @@ FIGURES = [
             "with red indicating over-representation and blue under-representation. LLMs share "
             "a strong emphasis on RNA and protein metabolism and under-represent bulk metabolism "
             "and developmental biology. Differences among LLMs are small compared with their "
-            "differences from baseline methods such as kNN."),
-        section="Figure 7 &middot; Results",
+            "differences from baseline methods such as Screen-kNN."),
+        section="Supplementary Figure 5 &middot; Results",
         paper_pdf="llm_pathway_heatmap.pdf",
         module="assayloop.scripts.plot_llm_pathway_heatmap",
         stem="llm_pathway_heatmap",
@@ -223,7 +201,7 @@ FIGURES = [
             "proposes different genes with a higher hit yield. AssayFormer also selects more "
             "genes in the Other category, consistent with Gemini favoring well-known genes and "
             "pathways. Gemini does not always use its full acquisition budget."),
-        section="Figure 8 &middot; Results",
+        section="Supplementary Figure 1 &middot; Results",
         paper_pdf="paper_handoff_composition_pathway.pdf",
         module="assayloop.scripts.paper_handoff_composition",
         args=["--device", "auto"],
@@ -259,7 +237,7 @@ FIGURES = [
             "established biological dependencies, while the negative updates suggest "
             "uncharacterized pathway relationships. Together they provide specific, testable "
             "hypotheses about vulnerabilities and mechanisms of resistance."),
-        section="Figure 9 &middot; Results",
+        section="Figure 5B / Supplementary Figure 9 &middot; Results",
         paper_pdf="paper_influence_figure.pdf",
         module="assayloop.scripts.paper_influence_figure",
         # --use-cache reads the influence values the paper's run already wrote
@@ -281,13 +259,13 @@ FIGURES = [
         caption=(
             "The same measurement as a dense matrix. The first 12 genes are canonical cancer "
             "drivers; the next 19 are representative functional-module genes."),
-        section="Figure 10 &middot; Results",
+        section="Supplementary Figure 8 &middot; Results",
         paper_pdf="gene_matrix_featured_heatmap.pdf",
         module="assayloop.scripts.analyze_gene_matrices",
         stem="gene_matrix_featured_heatmap",
         needs="the AssayFormer checkpoint",
     ),
-    # Figure 11 of the paper -- the static BPMF organisation panel -- is
+    # Supplementary Figure 4 -- the static BPMF organisation panel -- is
     # deliberately not here. umap.html plots the same embedding live from
     # gene_umap.json, with the clusters, the hit rates and a gene search, and
     # two versions of one picture on one site is one too many.
@@ -301,7 +279,7 @@ FIGURES = [
             "closely recover these databases, including GenePT and K562, are harder to train "
             "AssayFormer on, whereas matrix-factorization initializations learned from "
             "historical screens are most useful."),
-        section="Figure 12 &middot; Results",
+        section="Supplementary Figure 3 &middot; Results",
         paper_pdf="gene_embedding_init_story.pdf",
         module="assayloop.scripts.plot_embedding_init_story",
         stem="gene_embedding_init_story",
@@ -317,7 +295,7 @@ FIGURES = [
             "and so do AssayFormer and the AssayLoop system built on it &mdash; the two rows "
             "below the rule, which are blinded by seeing no readout at all rather than by a "
             "prompt with the labels stripped."),
-        section="Figure 13 &middot; Results",
+        section="Supplementary Figure 11 &middot; Results",
         paper_pdf="llm_label_ablation.pdf",
         module="assayloop.scripts.plot_label_ablation",
         stem="llm_label_ablation",
@@ -332,7 +310,7 @@ FIGURES = [
             "type. BPMF embeddings show near-perfect preservation of gene neighborhoods, while "
             "other initializations undergo substantial reorganization during supervised "
             "pretraining."),
-        section="Figure 14 &middot; Appendix D",
+        section="Supplementary Figure 2 &middot; Results",
         paper_pdf="gene_embedding_drift_by_source.pdf",
         module="assayloop.scripts.plot_embedding_drift_by_source",
         stem="gene_embedding_drift_by_source",

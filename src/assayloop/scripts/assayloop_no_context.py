@@ -23,7 +23,7 @@ no-context AssayFormer ranking both already exist -- and replayed through the
 standard loop, then scored with the table's own domain-adjusted EF/nAUC
 (``_adj_ef_from_run`` / ``_adj_nauc_from_run``) rather than the raw
 ``n_hits_vs_random``, so the with-feedback side reproduces the LaTeX row
-(EF 5.66, nAUC 21.7) exactly and the difference is a like-for-like one. The
+(EF 5.67, nAUC 21.7) exactly and the difference is a like-for-like one. The
 ranking is 1000 genes long and Gemini's first three rounds overlap it by at
 most 252, so the 700 are always available.
 

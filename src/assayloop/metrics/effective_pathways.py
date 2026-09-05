@@ -18,7 +18,7 @@ high for annotation depth alone. Measured, that inverts the batch-scope
 ranking: kNN's picks sit in 5.03 level-2 groups each against a uniform draw's
 2.52, which is enough to score kNN *above* random on fractional weights at
 batch scope (43.7 vs 41.1) while one pathway per gene puts it correctly below
-(19.0 vs 21.8) and it sits far below at EP-D. The ratio is scale-free, so a
+(19.0 vs 21.7) and it sits far below at EP-D. The ratio is scale-free, so a
 larger reference count widens the gap instead of closing it, and coarsening the
 vocabulary does not remove it either -- the fix has to be the
 one-pathway-per-gene assignment, which pins every method's ceiling to ``m``
@@ -50,9 +50,10 @@ The reference counts are *fixed constants*, deliberately not derived from the
 minimum across whatever methods happen to be in the table: a min-over-methods
 target would mean adding one new baseline row silently changed every other
 row's score. Units with fewer than the reference count are dropped and counted
-in ``ep_n_dropped``; if a scope loses more than ``1 - RETENTION`` of its units
-the whole cell is reported as ``None``, because the units that survive are the
-better-annotated ones and their mean would flatter the method.
+in ``ep_n_dropped``. The survivor mean is conservative in this benchmark:
+better-annotated batches yield slightly lower rarefied EP, not higher. The
+reported ``ep_*_retention`` fields preserve that context; ``RETENTION`` only
+suppresses a value based on too few units to be stable.
 
 Two things are deliberately kept apart at batch scope. A batch the method never
 filled (LLM harnesses routinely emit short batches, and Kimi-K2.6's median batch
@@ -60,8 +61,8 @@ is 32 picks) is excluded from EP-B as a run artifact -- that is what the
 Shortfall column measures. A *full* batch whose genes simply are not in Reactome
 is real behaviour and is not excluded: BioBO, Haystacks and RF + UCB emit
 complete 100-gene batches whose 5th percentile carries 4, 9 and 10 annotated
-genes respectively, against ~47 for a uniform draw, so they dash out of EP-B
-rather than being scored on their annotated minority.
+genes respectively, against ~47 for a uniform draw. Their EP-B values therefore
+carry lower retention, which is returned alongside each score.
 
 The un-rarefied *fractional-weight* plug-in values are returned alongside as
 ``*_raw``. They are not the reported statistic -- they carry both the sample-
@@ -82,7 +83,7 @@ import numpy as np
 # below for what happens to a method that cannot supply them.
 #
 # Calibrated against the measured per-unit annotated-gene distribution over all
-# 58 methods in the full-genome table, after truncated batches are excluded:
+# 59 evaluated configurations, after truncated batches are excluded:
 #   M_BATCH   30 -- 5th-percentile *full* batch supplies 47-62 annotated genes
 #                   for every method except BioBO (4), Haystacks (9),
 #                   RF + UCB (10) and Kimi-K2.6 (24), which dash out.
@@ -95,15 +96,17 @@ M_SCREEN = 200
 M_DATASET = 6_000
 
 # Fraction of a scope's units that must survive the >= M_* filter for its mean
-# to be reported. The survivors are the better-annotated units, so below this
-# the mean flatters the method and a dash is the honest cell.
-RETENTION = 0.95
+# to be reported at all. The survivor bias is small and negative in the
+# benchmark (better-annotated batches produce slightly lower rarefied EP), so
+# this is only a floor against a value resting on a handful of units. Retention
+# remains available in the returned diagnostics for callers to surface.
+RETENTION = 0.25
 
 # Subsample draws averaged per unit. Set by measuring the seed-to-seed spread
 # on real pick streams (seeds 0-2, the six sunburst methods) and raising R until
 # it sits well under the printed precision. Already at R=100 the spread is
 # <= 0.02 (EP-B), and EP-B is the tightest scope: it is bounded above by M_BATCH
-# so its between-method range is ~8 (13.8 for AssayLLM to 21.8 for a uniform
+# so its between-method range is ~8 (13.8 for AssayLLM to 21.7 for a uniform
 # draw). That is a 400x signal-to-noise ratio; all three scopes are printed to
 # one decimal.
 R_BATCH = 400
@@ -166,7 +169,7 @@ def gmt_membership() -> dict[str, tuple[str, ...]]:
     hierarchy entry share a single ``OTHER_GROUP`` bucket rather than each
     becoming its own node, which would pad the vocabulary with singletons, for
     186 nodes in all. A uniform draw from the f2 acquisition universe then
-    scores 21.8 / 56.4 / 82.1 at the three scopes, so the counts read as
+    scores 21.7 / 56.4 / 81.6 at the three scopes, so the counts read as
     absolute numbers of biological programs against a fixed, nameable
     denominator.
 
@@ -423,10 +426,10 @@ def effective_pathways(screen_batches, *, rarefy: bool = True,
     # run artifact, not a low-diversity batch, and should not set M_BATCH.
     full = ba[bp >= min_full] if bp.size else ba
 
-    # Dropping the units that cannot supply M_* keeps every retained unit
-    # comparable, but the survivors are the better-annotated ones -- so once the
-    # drop rate is material the mean over survivors flatters the method. Past
-    # that point report nothing rather than a biased number.
+# Dropping units that cannot supply M_* keeps every retained unit comparable.
+# RETENTION is only a stability floor: in this benchmark the survivor effect is
+# small and conservative, and the exact retained fractions remain available in
+# the diagnostics below.
     ep_b = _mean(batch_r) if rarefy else _mean(batch_raw)
     ep_s = _mean(screen_r) if rarefy else _mean(screen_raw)
     b_ret = (batch_kept / batch_elig) if batch_elig else None

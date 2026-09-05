@@ -1,8 +1,42 @@
-// Label-feedback ablation chart for results.html.
-// Reads assets/data/label_ablation.json.
+// Full-test-set LOPO comparison and label-feedback ablation for results.html.
+// Reads assets/data/lopo.json and assets/data/label_ablation.json.
 
 (function () {
   const S = window.AssayLoop;
+
+  async function renderLopo() {
+    const node = document.getElementById("lopo-chart");
+    if (!node) return;
+    let data;
+    try {
+      data = await S.fetchJSON("assets/data/lopo.json?v=bcc98e9f");
+    } catch (err) {
+      S.showError(node, err);
+      return;
+    }
+
+    const rows = data.rows.slice().reverse();
+    const trace = {
+      type: "bar", orientation: "h",
+      x: rows.map((r) => r.ef),
+      y: rows.map((r) => r.label),
+      text: rows.map((r) => r.ef.toFixed(2)),
+      textposition: "outside",
+      cliponaxis: false,
+      marker: { color: rows.map((r) => r.color) },
+      hovertemplate: "<b>%{y}</b><br>EF: %{x:.2f}&times;<extra></extra>",
+    };
+    const layout = S.mergeLayout({
+      height: 350,
+      title: { text: `Enrichment factor on the ${data.scope.toLowerCase()}`,
+               x: 0.5, xanchor: "center" },
+      margin: { l: 180, r: 70, t: 58, b: 72 },
+      xaxis: { title: data.metric, range: [0, 5.35], automargin: true },
+      yaxis: { type: "category", automargin: true },
+      showlegend: false,
+    });
+    Plotly.react(node, [trace], layout, S.PLOTLY_CONFIG);
+  }
 
   async function renderAblation() {
     const node = document.getElementById("ablation-chart");
@@ -77,6 +111,7 @@
   }
 
   function init() {
+    renderLopo();
     renderAblation();
   }
 

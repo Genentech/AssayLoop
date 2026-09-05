@@ -1,6 +1,6 @@
 // The recovery-curve explorer.
 //
-// Two data files: recovery_mean.json (58 methods x 10 steps, with SEM) and
+// Two data files: recovery_mean.json (59 methods x 10 steps, with SEM) and
 // recovery_by_screen.json (the same, per test screen). Both come from
 // export_recovery_curves.py by way of docs/build_data.py. Methods are keyed by
 // the same string the results table uses, so the two pages agree on names.

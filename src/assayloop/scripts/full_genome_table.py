@@ -8,11 +8,11 @@ across all screens, so every method faces the same pool.
 
 Usage::
 
-    # Full universe (22k genes, includes pseudogenes etc.)
+    # Default f2 universe: genes present in at least two test screens (~21k)
     uv run python -m assayloop.scripts.full_genome_table
 
-    # Filtered: only genes in >= 2 test screens (~21k, removes rare junk)
-    uv run python -m assayloop.scripts.full_genome_table --min-screen-freq 2
+    # Unfiltered union (22k genes, includes rare pseudogenes etc.)
+    uv run python -m assayloop.scripts.full_genome_table --min-screen-freq 0
 
     # Same rows, also dumped as JSON for docs/build_data.py
     uv run python -m assayloop.scripts.full_genome_table --min-screen-freq 2 \\
@@ -38,6 +38,11 @@ import numpy as np
 from assaybench.benchmark.sequential import load_common_essentials
 from assayloop import config
 from assayloop.experiment.runner import RunConfig, make_model, run_one_screen
+from assayloop.llm.replay import (
+    load_logged_response_texts,
+    normalise_gene_batches,
+    replay_llm_steps,
+)
 from assayloop.metrics.effective_pathways import (
     M_BATCH, M_DATASET, M_SCREEN, RETENTION, effective_pathways)
 from assayloop.tasks import gene_universe, load_screens
@@ -117,7 +122,13 @@ def _require_runs(sweep_id: str, label: str, screens) -> list[Path]:
     return paths
 
 
-def _load_traces(trace_prefix: str, label: str) -> dict:
+def _load_traces(
+    trace_prefix: str,
+    label: str,
+    *,
+    universe_genes,
+    batch_size: int = 100,
+) -> dict:
     """Warm-start traces for a handoff row, across every run root.
 
     Raises rather than returning an empty dict: the caller passes
@@ -130,7 +141,14 @@ def _load_traces(trace_prefix: str, label: str) -> dict:
     traces: dict = {}
     for rd in RUN_DIRS:
         if rd.is_dir():
-            traces.update(load_run_traces(rd, trace_prefix))
+            traces.update(
+                load_run_traces(
+                    rd,
+                    trace_prefix,
+                    universe_genes=universe_genes,
+                    batch_size=batch_size,
+                )
+            )
     if not traces:
         raise config.MissingConfiguredPath(
             f"{label}: no warm-start traces matching {trace_prefix}* in any of "
@@ -143,6 +161,10 @@ def _load_traces(trace_prefix: str, label: str) -> dict:
 # (label, model_name, acq, model_overrides, ranker_checkpoint, sweep_id_suffix)
 HANDOFF_RANKER = "gf-bpmf-train-hits-rl-fg-s19"
 HANDOFF_CKPT_FILE = "model_last.pt"
+# Old handoff caches replayed already library-filtered LLM batches. Include a
+# provenance tag in regenerated sweep IDs so those caches cannot be mistaken
+# for runs built from the complete raw answers.
+UNFILTERED_LLM_REPLAY_TAG = "raw-v1"
 # RL runs read from model_last.pt (the final GRPO epoch) rather than model.pt
 # (the best-on-validation epoch), for two different reasons:
 #
@@ -160,7 +182,7 @@ _RL_MODEL_LAST = {HANDOFF_RANKER, "gf-random-train-d10-rl"}
 
 METHODS = [
     ("Prior hit baseline", "screen_knn", "greedy", {"prior_only": True}, None, "fg-prior-hit"),
-    ("kNN baseline", "screen_knn", "greedy", {}, None, "fg-knn"),
+    ("Screen-kNN", "screen_knn", "greedy", {}, None, "fg-knn"),
     ("RF (greedy)", "rf", "greedy", {}, None, "fg-rf-greedy"),
     ("RF + UCB", "rf", "ucb", {}, None, "fg-rf-ucb"),
     (r"BPMF~\cite{}", "bpmf", "greedy", {}, None, "fg-bpmf"),
@@ -170,7 +192,9 @@ METHODS = [
     (r"Transformer + DAgger~\cite{}", None, "greedy", {}, "ranker-dagger", "fg-dagger"),
     (r"MAML (+BPMF)~\cite{}", None, "greedy", {}, "maml-bpmf-d10", "fg-maml"),
     # --- Ablation: supervised ---
-    ("Transformer (Random)", None, "greedy", {}, "gf-random-train-d10", "fg-ablation-random"),
+    # This is the same checkpoint as the "Transformer" row above. Reuse its
+    # sweep so near-tied genes from a separate run cannot shift % essential.
+    ("Transformer (Random)", None, "greedy", {}, "gf-random-train-d10", "fg-transformer"),
     ("Transformer (BPMF)", None, "greedy", {}, "gf-bpmf-train-hits", "fg-ablation-bpmf"),
     (r"\quad - screen desc.", None, "greedy", {}, "scaling-L-k10-bpmf-d1349-s0", "fg-ablation-nodesc"),
     ("Transformer (SVD)", None, "greedy", {}, "gf-svd-raw-train-d10", "fg-ablation-svd-raw"),
@@ -211,18 +235,22 @@ BPMF_HANDOFF_METHODS = []
 # Fine-tuned-LLM prediction dumps; set ASSAYLOOP_LLM_PREDICTIONS.
 QWEN_REPARSE = config.LLM_PREDICTIONS_PATH
 
-# Handoff from JSONL traces (finetuned LLM predictions -> transformer)
-# (label, jsonl_path, ranker_checkpoint, n_warm, sweep_id_suffix)
+# Handoff from JSONL traces (finetuned LLM predictions -> transformer).
+# Checkpoint selection is explicit: the selected s19 model's genuine weights
+# are in model_last.pt; the older jointly optimized model uses model.pt.
+# (label, jsonl_path, ranker_checkpoint, checkpoint_file, n_warm,
+#  sweep_id_suffix)
 JSONL_HANDOFF_METHODS = [
     ("AssayLLM - AssayLoop Handoff",
      QWEN_REPARSE / "sft_grpo_test_predictions.jsonl",
-     HANDOFF_RANKER, 2, "fg-handoff-assayllm-s19"),
+     HANDOFF_RANKER, HANDOFF_CKPT_FILE, 2, "fg-handoff-assayllm-s19"),
     ("AssayLLM-AssayLoop Handoff GRPO",
      QWEN_REPARSE / "handoff_best_handoff_k2_gf-bpmf-train-hits-rl_predictions.jsonl",
-     "gf-bpmf-train-hits-rl", 2, "fg-handoff-joint-grpo"),
+     "gf-bpmf-train-hits-rl", "model.pt", 2,
+     "fg-handoff-joint-grpo-best"),
 ]
 
-# LLM rows: recalculate EF from existing sweep results using the universe denominator.
+# LLM rows: replay saved raw answers against the selected gene universe.
 LLM_METHODS = [
     ("GLM-5.1", ("tag+acq", "GLM-5.1", "llm_single")),
     (r"\quad - hit labels", ("tag+acq", "GLM-5.1", "llm_single_blind")),
@@ -589,8 +617,119 @@ def _round_submitted(r):
     """Genes submitted/acquired in one JSONL round (finetuned-LLM uses
     ``submitted``; the handoff format uses ``acquired``)."""
     if isinstance(r, dict):
-        return r.get("submitted") or r.get("acquired") or []
+        return (
+            r.get("submitted")
+            or r.get("acquired")
+            or r.get("new_hits", []) + r.get("new_misses", [])
+            or r.get("hits", []) + r.get("misses", [])
+        )
     return r if isinstance(r, list) else []
+
+
+def _metrics_from_batches(
+    batches,
+    screen,
+    universe_set,
+    essentials_set,
+    noness_stats,
+    budget=1000,
+):
+    """Score valid-universe batches using the table's adjusted convention."""
+    from assayloop.metrics.hits_auc import adjusted_ef_value
+
+    library = set(screen.genes)
+    hit_genes = {g for g, hit in zip(screen.genes, screen.hits) if hit}
+    total_hits = len(hit_genes)
+    domain_size = len(library)
+    n1 = n2 = hits = 0
+    effective = cumulative_hits = 0
+    xs = [0.0]
+    ys = [0.0]
+    hits_noness = hits_ess = picks_noness = 0
+
+    for batch in batches:
+        for gene in batch:
+            if gene in library:
+                n1 += 1
+                effective += 1
+                if gene in hit_genes:
+                    hits += 1
+                    cumulative_hits += 1
+                    if gene in essentials_set:
+                        hits_ess += 1
+                    else:
+                        hits_noness += 1
+                if gene not in essentials_set:
+                    picks_noness += 1
+            elif gene in universe_set:
+                n2 += 1
+                if gene not in essentials_set:
+                    picks_noness += 1
+        xs.append(effective / domain_size if domain_size else 0.0)
+        ys.append(cumulative_hits / total_hits if total_hits else 0.0)
+
+    ef = adjusted_ef_value(hits, n1, n2, domain_size, total_hits, budget)
+    auc = float(np.trapezoid(ys, xs))
+    ys_best = (
+        [min(x * domain_size / total_hits, 1.0) for x in xs]
+        if total_hits
+        else []
+    )
+    best = float(np.trapezoid(ys_best, xs)) if ys_best else 0.0
+
+    total_hits_ne = noness_stats.get("total_hits", 0)
+    domain_size_ne = noness_stats.get("domain_size", 0)
+    random_ne = (
+        picks_noness * total_hits_ne / domain_size_ne
+        if picks_noness and total_hits_ne and domain_size_ne
+        else 0.0
+    )
+    found = hits_noness + hits_ess
+    return {
+        "ef": ef,
+        "nauc": auc / best if best > 0 else 0.0,
+        "frac": hits / total_hits if total_hits else 0.0,
+        "shortfall": max(0, budget - n1 - n2) / budget,
+        "ef_ne": hits_noness / random_ne if random_ne > 0 else 0.0,
+        "frac_ne": hits_noness / total_hits_ne if total_hits_ne else 0.0,
+        "pct_ess": hits_ess / found if found else 0.0,
+    }
+
+
+def _mean_batch_metrics(rows):
+    """Column means for per-screen dictionaries from _metrics_from_batches."""
+    keys = ("ef", "nauc", "frac", "shortfall", "ef_ne", "frac_ne", "pct_ess")
+    return {
+        key: float(np.mean([row[key] for row in rows])) if rows else None
+        for key in keys
+    }
+
+
+def _handoff_sweep_id(sweep_tag, sweep_suffix):
+    suffix = f"{sweep_suffix}-{UNFILTERED_LLM_REPLAY_TAG}"
+    return f"sweep-{sweep_tag}-{suffix}" if sweep_tag != "fg" else f"sweep-{suffix}"
+
+
+def _ep_cols(div):
+    """Return EP metrics and rarefaction diagnostics for a results row."""
+    return {
+        "ep_b": div.get("ep_batch"),
+        "ep_s": div.get("ep_screen"),
+        "ep_d": div.get("ep_dataset"),
+        "ep_ann": div.get("ep_n_annotated"),
+        "ep_drop": div.get("ep_n_dropped"),
+        "ep_bmin": div.get("ep_batch_ann_min"),
+        "ep_bp5": div.get("ep_batch_ann_p5"),
+        "ep_pmed": div.get("ep_batch_pick_med"),
+        "ep_pp5": div.get("ep_batch_pick_p5"),
+        "ep_fmin": div.get("ep_batch_full_min"),
+        "ep_fp5": div.get("ep_batch_full_p5"),
+        "ep_nfull": div.get("ep_batch_n_full"),
+        "ep_bret": div.get("ep_batch_retention"),
+        "ep_sret": div.get("ep_screen_retention"),
+        "ep_smin": div.get("ep_screen_ann_min"),
+        "ep_nb": div.get("ep_n_batches"),
+    }
 
 
 # A LaTeX-only spacer row in ``layout``: emitted verbatim into the .tex, skipped
@@ -632,8 +771,9 @@ def build_layout() -> list[tuple[str, str, list[str]]]:
          [lab for lab, _, _ in JSONL_METHODS
           if "Handoff" not in lab and "Joint" not in lab]),
         ("Adaptive Experimental Design Methods", "classical", [
+            "Random",
             "Prior hit baseline",
-            "kNN baseline",
+            "Screen-kNN",
             "RF (greedy)",
             "RF + UCB",
             r"BPMF~\cite{}",
@@ -786,10 +926,10 @@ def _write_json(path: Path, layout, results, universe, screens, *,
 def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--min-screen-freq", type=int, default=0,
+    ap.add_argument("--min-screen-freq", type=int, default=2,
                     help="Only include genes appearing in >= N test screens. "
-                         "0 = no filter (full 22k universe). "
-                         "2 = removes pseudogenes/antisense (~21k).")
+                         "Defaults to 2 (~21k genes); use 0 for the unfiltered "
+                         "union of all screen libraries (~22k).")
     ap.add_argument("--json", type=Path, default=None, metavar="PATH",
                     help="Also write the table as structured JSON. Same rows, "
                          "same order, raw numbers instead of LaTeX. This is "
@@ -1000,6 +1140,58 @@ def main():
         if model_obj is not None:
             del model_obj
 
+    # --- Random: a uniform draw from the acquisition universe ------------
+    # This row calibrates the adjusted EF denominator and supplies the EP
+    # reference printed in the caption. Use a different seed per screen so the
+    # pooled dataset is twenty independent draws, not one draw scored 20 times.
+    from assayloop.acquisitions.random_acq import RandomAcquisition
+
+    log.info("=== Random (uniform draw from the universe) ===")
+    rand_sweep = (
+        f"sweep-{sweep_tag}-fg-random-uniform"
+        if sweep_tag != "fg"
+        else "sweep-fg-random-uniform"
+    )
+    rand_cfg = replace(base_cfg, model="null", acq="random")
+    rand_fracs = []
+    for i, screen in enumerate(screens):
+        run_id = f"{rand_sweep}-{i:02d}-{screen.dataset_name}"
+        cached = _run_result(run_id)
+        if cached is not None:
+            log.info("  [%d/%d] %s (cached)", i + 1, len(screens), screen.dataset_name)
+            fm = json.loads(cached.read_text()).get("final_metrics", {})
+        else:
+            log.info("  [%d/%d] %s", i + 1, len(screens), screen.dataset_name)
+            result = run_one_screen(
+                screen,
+                rand_cfg,
+                model_obj=None,
+                acq_obj=RandomAcquisition(seed=i),
+                verbose=False,
+                run_id=run_id,
+                sweep_id=rand_sweep,
+            )
+            fm = result.final_metrics or {}
+        rand_fracs.append(fm.get("frac_hits", 0))
+
+    random_paths = _sweep_run_paths(rand_sweep, screens)
+    random_div = _compute_diversity_from_runs(random_paths)
+    random_ne = _noness_ef_runs(
+        rand_sweep, screens, essentials, noness_by_screen
+    )
+    results["Random"] = {
+        "ef": _adj_ef_runs(rand_sweep, screens, universe_set, BUDGET),
+        "nauc": _adj_nauc_runs(rand_sweep, screens, universe_set, BUDGET),
+        "frac": float(np.mean(rand_fracs)) if rand_fracs else None,
+        "shortfall": _oob_frac_from_runs(random_paths),
+        "vendi": random_div.get("vendi"),
+        "pathway": random_div.get("pathway"),
+        **_ep_cols(random_div),
+        "ef_ne": random_ne[0],
+        "frac_ne": random_ne[1],
+        "pct_ess": random_ne[2],
+    }
+
     # --- Baselines given as raw sweep IDs (universe pool -> domain-adjusted) ---
     def _raw_sweep_row(sweep_id, label):
         _require_runs(sweep_id, label, screens)
@@ -1063,11 +1255,16 @@ def main():
 
     for label, trace_prefix, ranker_name, n_warm, sweep_suffix in HANDOFF_METHODS:
         log.info("=== %s ===", label)
-        sweep_id = f"sweep-{sweep_tag}-{sweep_suffix}" if sweep_tag != "fg" else f"sweep-{sweep_suffix}"
+        sweep_id = _handoff_sweep_id(sweep_tag, sweep_suffix)
         efs, naucs, fracs, shortfalls = [], [], [], []
 
         # Load traces from LLM sweep runs
-        traces = _load_traces(trace_prefix, label)
+        traces = _load_traces(
+            trace_prefix,
+            label,
+            universe_genes=universe,
+            batch_size=100,
+        )
 
         model_obj = _load_ranker_model(ranker_name, ckpt_file=HANDOFF_CKPT_FILE)
         cfg = replace(base_cfg, model="null", acq="greedy")
@@ -1145,7 +1342,7 @@ def main():
     import glob as _glob
     for label, trace_prefix, bpmf_root, bpmf_k, n_warm, sweep_suffix in BPMF_HANDOFF_METHODS:
         log.info("=== %s ===", label)
-        sweep_id = f"sweep-{sweep_tag}-{sweep_suffix}" if sweep_tag != "fg" else f"sweep-{sweep_suffix}"
+        sweep_id = _handoff_sweep_id(sweep_tag, sweep_suffix)
         pkls = sorted(_glob.glob(
             f"{bpmf_root}/bpmf_public_train_K{bpmf_k}_su1_sv1_*/bpmf_result.pkl"))
         if not pkls:
@@ -1154,7 +1351,12 @@ def main():
                                                   "vendi", "pathway", "ef_ne",
                                                   "frac_ne", "pct_ess")}
             continue
-        traces = _load_traces(trace_prefix, label)
+        traces = _load_traces(
+            trace_prefix,
+            label,
+            universe_genes=universe,
+            batch_size=100,
+        )
         model_obj = make_model("bpmf", overrides={"checkpoint_path": pkls[-1]})
         cfg = replace(base_cfg, model="null", acq="greedy")
 
@@ -1211,9 +1413,10 @@ def main():
         del model_obj
 
     # --- JSONL-based handoff methods ---
-    for label, jsonl_path, ranker_name, n_warm, sweep_suffix in JSONL_HANDOFF_METHODS:
+    for (label, jsonl_path, ranker_name, ckpt_file, n_warm,
+         sweep_suffix) in JSONL_HANDOFF_METHODS:
         log.info("=== %s ===", label)
-        sweep_id = f"sweep-{sweep_tag}-{sweep_suffix}" if sweep_tag != "fg" else f"sweep-{sweep_suffix}"
+        sweep_id = _handoff_sweep_id(sweep_tag, sweep_suffix)
         efs, naucs, fracs, shortfalls = [], [], [], []
 
         # Read lazily. The predictions are only needed to *replay* the LLM's
@@ -1242,7 +1445,7 @@ def main():
                     }
             return jsonl_by_name
 
-        model_obj = _load_ranker_model(ranker_name, ckpt_file=HANDOFF_CKPT_FILE)
+        model_obj = _load_ranker_model(ranker_name, ckpt_file=ckpt_file)
         cfg = replace(base_cfg, model="null", acq="greedy")
 
         for i, screen in enumerate(screens):
@@ -1256,17 +1459,9 @@ def main():
                 log.info("  [%d/%d] %s", i + 1, len(screens), screen.dataset_name)
                 js = _predictions().get(screen.dataset_name, {})
                 rg = js.get("round_genes", [])
-                rounds = []
-                for r in rg:
-                    if isinstance(r, dict):
-                        genes = r.get("new_hits", []) + r.get("new_misses", [])
-                        if not genes:
-                            genes = r.get("hits", []) + r.get("misses", [])
-                        if not genes:
-                            genes = r.get("acquired", [])
-                        if not genes:
-                            genes = r.get("submitted", [])
-                        rounds.append(genes)
+                rounds = normalise_gene_batches(
+                    [_round_submitted(r) for r in rg], universe, batch_size=100
+                )
                 acq_obj = GlmHandoffAcquisition(
                     rounds=rounds,
                     n_warm=n_warm if rounds else 0,
@@ -1325,24 +1520,24 @@ def main():
 
         del model_obj
 
-    # --- LLM methods: recalculate EF from existing sweep results ---
+    # --- LLM methods: replay raw answers against the selected universe ---
     from assayloop.scripts import results_index
-    from assayloop.scripts.results_index import _load_all_sweeps, load_sweep_index, resolve_row
+    from assayloop.scripts.results_index import (
+        _find_run_result,
+        _load_all_sweeps,
+        compute_diversity_from_batches,
+        load_sweep_index,
+        resolve_row,
+    )
 
     all_sweeps = _load_all_sweeps()
     index = load_sweep_index(all_sweeps)
-
-    # Build screen name -> domain_size lookup
-    domain_size_by_name = {s.dataset_name: len(s.genes) for s in screens}
-    hits_by_name = {s.dataset_name: sum(s.hits) for s in screens}
+    screens_by_name = {s.dataset_name: s for s in screens}
 
     for label, lookup_key in LLM_METHODS:
-        log.info("=== %s (recalc) ===", label)
+        log.info("=== %s (raw-response replay) ===", label)
         hit = resolve_row(lookup_key, index)
         if hit is None:
-            # Not a warning-and-dash: every one of these rows is a published
-            # number, and an unresolved lookup means the sweep bundle is not
-            # in place, not that the method scored nothing.
             raise config.MissingConfiguredPath(
                 f"{label}: no sweep matches {lookup_key!r}.\nSearched: "
                 + ", ".join(str(d) for d in results_index.SWEEP_DIRS)
@@ -1350,84 +1545,92 @@ def main():
             )
 
         _, _, sd = hit
-        efs, naucs, fracs, shortfalls = [], [], [], []
+        metric_rows = []
+        llm_batches = []
+        full_log_steps = result_trace_steps = fallback_steps = 0
+        is_direct_llm = str(sd.get("config", {}).get("acq", "")).startswith(
+            "llm_single"
+        )
         for ps in sd.get("per_screen", []):
-            fm = ps.get("final_metrics") or {}
-            n_hits = fm.get("n_hits", 0)
-            total_hits = fm.get("total_hits", 1)
             screen_name = ps.get("screen_name", "")
-            domain_size = domain_size_by_name.get(screen_name, 19000)
-            # LLMs: all shortfall = n3 (out-of-universe), so eff_budget = BUDGET
-            # EF = h / (BUDGET * H / D)
-            rand_expected = BUDGET * total_hits / domain_size
-            ef = n_hits / rand_expected if rand_expected > 0 else 0
-            efs.append(ef)
-            fracs.append(fm.get("frac_hits", 0))
-            shortfalls.append(fm.get("shortfall_frac", 0))
-            ha = fm.get("hits_auc", 0)
-            hab = fm.get("hits_auc_best", 1)
-            naucs.append(ha / hab if hab > 0 else 0)
-
-        # Diversity from original sweep runs
-        from assayloop.scripts.results_index import get_run_ids, compute_diversity, _find_run_result
-        rids = get_run_ids(sd)
-        div = compute_diversity(rids, scorer) if rids else {}
-
-        # Non-essential EF + domain-adjusted nAUC from per-screen result.json.
-        # (For library-pool LLMs n2=0 so this matches the raw nAUC; computing it
-        # the same way keeps the whole nAUC column on one consistent basis.)
-        efs_ne, fracs_ne, pcts_ess = [], [], []
-        naucs_adj = []
-        for ps in sd.get("per_screen", []):
             rid = ps.get("run_id", "")
-            screen_name = ps.get("screen_name", "")
             fp = _find_run_result(rid) if rid else None
-            ne = noness_by_screen.get(screen_name, {})
-            if fp:
-                lib = lib_by_name.get(screen_name, set())
-                H = hits_by_name.get(screen_name, 0)
-                D = domain_size_by_name.get(screen_name, len(lib) or 1)
-                if H > 0 and D > 0:
-                    naucs_adj.append(_adj_nauc_from_run(
-                        fp, lib, universe_set, H, D, BUDGET))
-                if ne.get("total_hits", 0) > 0:
-                    ef_n, frac_n, pct_n = _noness_ef_from_run(
-                        fp, lib, essentials, ne["total_hits"], ne["domain_size"])
-                    efs_ne.append(ef_n)
-                    fracs_ne.append(frac_n)
-                    pcts_ess.append(pct_n)
+            screen_obj = screens_by_name.get(screen_name)
+            if fp is None or screen_obj is None:
+                raise config.MissingConfiguredPath(
+                    f"{label}: cannot replay {screen_name!r}; result.json "
+                    f"for run {rid!r} was not found in "
+                    + ", ".join(str(d) for d in results_index.RUN_DIRS)
+                    + f".\n{config.PUBLISHED_HINT}"
+                )
 
+            run_data = json.loads(fp.read_text())
+            steps = run_data.get("steps") or []
+            if is_direct_llm:
+                responses = load_logged_response_texts(
+                    fp.parent, expected_steps=len(steps)
+                )
+                if responses is not None:
+                    full_log_steps += len(steps)
+                else:
+                    result_trace_steps += sum(
+                        "response_text" in (step.get("acquisition_trace") or {})
+                        for step in steps
+                    )
+                    fallback_steps += sum(
+                        "response_text" not in (step.get("acquisition_trace") or {})
+                        for step in steps
+                    )
+                batches = replay_llm_steps(
+                    steps,
+                    universe,
+                    batch_size=100,
+                    response_texts=responses,
+                )
+            else:
+                # LLMNN and ICBR use LLM calls inside a scoring model followed
+                # by greedy acquisition. Their prose is not a direct gene-list
+                # policy and must not replace the acquired batches.
+                batches = normalise_gene_batches(
+                    [step.get("acquired_batch") or [] for step in steps],
+                    universe,
+                    batch_size=100,
+                )
+                fallback_steps += len(steps)
+
+            llm_batches.append(batches)
+            metric_rows.append(
+                _metrics_from_batches(
+                    batches,
+                    screen_obj,
+                    universe_set,
+                    essentials,
+                    noness_by_screen.get(screen_name, {}),
+                    BUDGET,
+                )
+            )
+
+        div = compute_diversity_from_batches(llm_batches, scorer)
         results[label] = {
-            "ef": float(np.mean(efs)) if efs else None,
-            "nauc": (float(np.mean(naucs_adj)) if naucs_adj
-                     else (float(np.mean(naucs)) if naucs else None)),
-            "frac": float(np.mean(fracs)) if fracs else None,
-            "shortfall": float(np.mean(shortfalls)) if shortfalls else None,
+            **_mean_batch_metrics(metric_rows),
             "vendi": div.get("vendi_mean"),
             "pathway": div.get("pathway_mean"),
-            "ep_b": div.get("ep_batch"),
-            "ep_s": div.get("ep_screen"),
-            "ep_d": div.get("ep_dataset"),
-            "ep_ann": div.get("ep_n_annotated"),
-            "ep_drop": div.get("ep_n_dropped"),
-            "ep_bmin": div.get("ep_batch_ann_min"),
-            "ep_bp5": div.get("ep_batch_ann_p5"),
-            "ep_pmed": div.get("ep_batch_pick_med"),
-            "ep_pp5": div.get("ep_batch_pick_p5"),
-            "ep_fmin": div.get("ep_batch_full_min"),
-            "ep_fp5": div.get("ep_batch_full_p5"),
-            "ep_nfull": div.get("ep_batch_n_full"),
-            "ep_bret": div.get("ep_batch_retention"),
-            "ep_sret": div.get("ep_screen_retention"),
-            "ep_smin": div.get("ep_screen_ann_min"),
-            "ep_nb": div.get("ep_n_batches"),
-            "ef_ne": float(np.mean(efs_ne)) if efs_ne else None,
-            "frac_ne": float(np.mean(fracs_ne)) if fracs_ne else None,
-            "pct_ess": float(np.mean(pcts_ess)) if pcts_ess else None,
+            **_ep_cols(div),
         }
-        log.info("  EF=%.2f  nAUC=%.4f  frac=%.3f  shortfall=%.3f",
-                 results[label]["ef"] or 0, results[label]["nauc"] or 0,
-                 results[label]["frac"] or 0, results[label]["shortfall"] or 0)
+        log.info(
+            "  replay source: %d full-log steps, %d result-trace steps, "
+            "%d acquired-batch fallbacks",
+            full_log_steps,
+            result_trace_steps,
+            fallback_steps,
+        )
+        log.info(
+            "  EF=%.2f  nAUC=%.4f  frac=%.3f  shortfall=%.3f",
+            results[label]["ef"] or 0,
+            results[label]["nauc"] or 0,
+            results[label]["frac"] or 0,
+            results[label]["shortfall"] or 0,
+        )
 
     # --- JSONL-based methods (finetuned LLMs, AssayLLM handoff) ---
     for label, jsonl_path, fmt in JSONL_METHODS:
@@ -1440,147 +1643,42 @@ def main():
         with open(jsonl_path) as fh:
             screens_data = [json.loads(line) for line in fh]
 
-        efs, naucs, fracs, shortfalls = [], [], [], []
-        for s in screens_data:
-            total_hits = s.get("total_hits", 1)
-            if fmt == "handoff":
-                steps = s.get("per_step", [])
-            else:
-                steps = s.get("per_round", [])
-            if not steps:
-                continue
-            cum_hits = steps[-1].get("cum_hits", 0)
-            frac_hits = cum_hits / total_hits if total_hits > 0 else 0
-            fracs.append(frac_hits)
-
-            # Domain-adjusted EF + nAUC: classify each submitted gene, forgiving
-            # in-universe/out-of-library picks (n2) in BOTH the EF denominator and
-            # the nAUC budget axis, matching _adj_ef_from_run / _adj_nauc_from_run.
-            screen_name = s.get("dataset_name", "")
-            domain_size = domain_size_by_name.get(screen_name, s.get("library_size", 19000))
-            screen_lib = lib_by_name.get(screen_name, set())
-            rg = s.get("round_genes", [])
-            n2_per_round = []
-            n1 = n2 = 0
-            for r in rg:
-                r_n2 = 0
-                for g in _round_submitted(r):
-                    if g in screen_lib:
-                        n1 += 1
-                    elif g in universe_set:
-                        n2 += 1
-                        r_n2 += 1
-                n2_per_round.append(r_n2)
-            n3 = BUDGET - n1 - n2
-            eff = n1 + n3
-            rand_expected = eff * total_hits / domain_size if domain_size > 0 else 0
-            ef = cum_hits / rand_expected if rand_expected > 0 else 0
-            efs.append(ef)
-
-            # nAUC on the effective (cumulative genes minus forgiven n2),
-            # library domain, over the CHARGED-ACQUIRED domain only -- unfilled
-            # budget is NOT charged here (that penalty lives in EF and the
-            # Shortfall column), matching _adj_nauc_from_run.
-            if total_hits > 0 and domain_size > 0:
-                cum_n2 = 0
-                xs = [0.0]
-                ys = [0.0]
-                for j, r in enumerate(steps):
-                    cum_n2 += n2_per_round[j] if j < len(n2_per_round) else 0
-                    eff_genes = max(0.0, r.get("cum_genes", 0) - cum_n2)
-                    xs.append(eff_genes / domain_size)
-                    ys.append(r.get("cum_hits", 0) / total_hits)
-                auc = float(np.trapezoid(ys, xs))
-                # batch-matched oracle on the same x-grid (see _adj_nauc_from_run)
-                ys_best = [min(x * domain_size / total_hits, 1.0) for x in xs]
-                best = float(np.trapezoid(ys_best, xs))
-                naucs.append(auc / best if best > 0 else 0)
-            else:
-                naucs.append(0)
-
-            # Shortfall: always against 100-gene budget per round
-            sf_fracs = []
-            for j, r in enumerate(steps):
-                acquired = r.get("new_genes", 100)
-                sf_fracs.append(max(0, 100 - acquired) / 100)
-            shortfalls.append(float(np.mean(sf_fracs)) if sf_fracs else 0)
-
-        # Diversity from JSONL batches
-        from assayloop.scripts.results_index import compute_diversity_from_batches
+        metric_rows = []
         jsonl_batches = []
         for s in screens_data:
-            rg = s.get("round_genes", [])
-            if rg and isinstance(rg[0], dict):
-                batches = []
-                for r in rg:
-                    in_lib = (r.get("new_hits", []) + r.get("new_misses", [])
-                              or r.get("hits", []) + r.get("misses", []))
-                    fallback = r.get("submitted", []) or r.get("acquired", [])
-                    batches.append(in_lib if in_lib else fallback)
-                jsonl_batches.append(batches)
-            else:
-                jsonl_batches.append([])
-        div = compute_diversity_from_batches(jsonl_batches, scorer) if any(b for b in jsonl_batches) else {}
-
-        # Non-essential EF from JSONL per-round gene lists
-        efs_ne, fracs_ne, pcts_ess = [], [], []
-        for s in screens_data:
             screen_name = s.get("dataset_name", "")
-            ne = noness_by_screen.get(screen_name, {})
-            total_hits_ne = ne.get("total_hits", 0)
-            domain_size_ne = ne.get("domain_size", 1)
-            if total_hits_ne <= 0:
+            screen_obj = screens_by_name.get(screen_name)
+            if screen_obj is None:
                 continue
-            hits_found_ne = 0
-            hits_found_ess = 0
-            picks_ne = 0
             rg = s.get("round_genes", [])
-            for r in rg:
-                if isinstance(r, dict):
-                    for g in (r.get("new_hits", []) or r.get("hits", [])):
-                        if isinstance(g, str):
-                            if g in essentials:
-                                hits_found_ess += 1
-                            else:
-                                hits_found_ne += 1
-                                picks_ne += 1
-                    for g in (r.get("new_misses", []) or r.get("misses", [])):
-                        if isinstance(g, str) and g not in essentials:
-                            picks_ne += 1
-            total_found = hits_found_ne + hits_found_ess
-            pct_e = hits_found_ess / total_found if total_found > 0 else 0
-            pcts_ess.append(pct_e)
-            if picks_ne > 0 and total_hits_ne > 0:
-                rand_exp = picks_ne * total_hits_ne / domain_size_ne
-                efs_ne.append(hits_found_ne / rand_exp if rand_exp > 0 else 0)
-                fracs_ne.append(hits_found_ne / total_hits_ne)
+            batches = normalise_gene_batches(
+                [_round_submitted(r) for r in rg], universe, batch_size=100
+            )
+            if not batches:
+                continue
+            jsonl_batches.append(batches)
+            metric_rows.append(
+                _metrics_from_batches(
+                    batches,
+                    screen_obj,
+                    universe_set,
+                    essentials,
+                    noness_by_screen.get(screen_name, {}),
+                    BUDGET,
+                )
+            )
+
+        div = (
+            compute_diversity_from_batches(jsonl_batches, scorer)
+            if jsonl_batches
+            else {}
+        )
 
         results[label] = {
-            "ef": float(np.mean(efs)) if efs else None,
-            "nauc": float(np.mean(naucs)) if naucs else None,
-            "frac": float(np.mean(fracs)) if fracs else None,
-            "shortfall": float(np.mean(shortfalls)) if shortfalls else None,
+            **_mean_batch_metrics(metric_rows),
             "vendi": div.get("vendi_mean"),
             "pathway": div.get("pathway_mean"),
-            "ep_b": div.get("ep_batch"),
-            "ep_s": div.get("ep_screen"),
-            "ep_d": div.get("ep_dataset"),
-            "ep_ann": div.get("ep_n_annotated"),
-            "ep_drop": div.get("ep_n_dropped"),
-            "ep_bmin": div.get("ep_batch_ann_min"),
-            "ep_bp5": div.get("ep_batch_ann_p5"),
-            "ep_pmed": div.get("ep_batch_pick_med"),
-            "ep_pp5": div.get("ep_batch_pick_p5"),
-            "ep_fmin": div.get("ep_batch_full_min"),
-            "ep_fp5": div.get("ep_batch_full_p5"),
-            "ep_nfull": div.get("ep_batch_n_full"),
-            "ep_bret": div.get("ep_batch_retention"),
-            "ep_sret": div.get("ep_screen_retention"),
-            "ep_smin": div.get("ep_screen_ann_min"),
-            "ep_nb": div.get("ep_n_batches"),
-            "ef_ne": float(np.mean(efs_ne)) if efs_ne else None,
-            "frac_ne": float(np.mean(fracs_ne)) if fracs_ne else None,
-            "pct_ess": float(np.mean(pcts_ess)) if pcts_ess else None,
+            **_ep_cols(div),
         }
         log.info("  EF=%.2f  nAUC=%.4f  frac=%.3f  shortfall=%.3f",
                  results[label]["ef"] or 0, results[label]["nauc"] or 0,
@@ -1676,6 +1774,10 @@ def main():
 
     layout = build_layout()
 
+    random_ep = "/".join(
+        f"{results['Random'].get(key):.1f}" for key in ("ep_b", "ep_s", "ep_d")
+    )
+
     # Build LaTeX table — identical structure to baselines.tex
     lines = []
     lines.append(r"\begin{table}[h!]")
@@ -1691,7 +1793,10 @@ def main():
         rf"subsampled to a fixed annotated-gene count ({M_BATCH}, {M_SCREEN} and "
         rf"{M_DATASET} respectively), so the three are not directly comparable to "
         r"one another; a uniform draw from the acquisition universe scores "
-        r"21.8/56.4/82.1. A dash marks a method that cannot supply that count.}"
+        rf"{random_ep} (see the Random row). Each cell is the mean over the "
+        r"units able to supply that reference count; sparsely-annotated methods "
+        r"supply it in as few as half their batches, which biases EP-B "
+        r"\emph{down} by ${\sim}1$ rather than up.}"
     )
     lines.append(r"\label{tab:baselines_results}")
     lines.append(r"\setlength{\tabcolsep}{4pt}")

@@ -16,7 +16,7 @@ docs/
 ├── index.html               # landing page: abstract, headline numbers, teaser figure
 ├── method.html              # the pipeline figure panel by panel + what EF measures
 ├── results.html             # the full-genome results table, plus LOPO / scaling / ablation
-├── recovery.html            # recovery-curve explorer (58 methods × 20 screens)
+├── recovery.html            # recovery-curve explorer (59 methods × 20 screens)
 ├── diversity.html           # Effective Pathways / Vendi explorer + the sunbursts
 ├── umap.html                # BPMF gene-embedding scatter + the embedding figures
 ├── analysis.html            # handoff composition, LLM pathway shares, gene influence
@@ -102,6 +102,7 @@ python docs/build_umap.py
 | `recovery_mean.json` | `output/analysis/recovery_curves_mean.csv` |
 | `recovery_by_screen.json` | `output/analysis/recovery_curves_by_screen.csv` |
 | `diversity.json` | EP-B/EP-S/EP-D, Vendi and EF, sliced out of `results.json` |
+| `lopo.json` | the four full-test-set EF values reported in Figure 4B |
 
 `build_umap.py` writes `gene_umap.json` from the BPMF checkpoint plus
 `output/analysis/bpmf_k10_gene_clusters.tsv`. It projects with the same helper
@@ -131,7 +132,7 @@ MPLCONFIGDIR=/tmp/assayloop-mpl python docs/plot_pathway_sunburst_release.py
 
 The renderer checks every non-random EP-B, EP-S, and EP-D value against
 `results.json` before drawing. Its Random panel uses the published f2-universe
-reference, 21.8 / 56.4 / 82.1, so stale or incorrectly aggregated data fails
+reference, 21.7 / 56.4 / 81.6, so stale or incorrectly aggregated data fails
 loudly instead of yielding a plausible-looking figure. Each run writes both
 the one-row website figure (`pathway_sunburst.*`) and the 2 × 3 paper figure
 (`pathway_sunburst_appendix.*`).
@@ -145,9 +146,17 @@ If a regenerated figure differs from the paper's, the person building the site
 sees it and decides what to do; the reader does not get a discrepancy notice
 stapled to the figure.
 
-Pages place figures with `<div data-figures="lopo,scaling"></div>`, and
+Pages place generated figures with `<div data-figures="scaling,label_ablation"></div>`, and
 `assets/js/figure-strip.js` fills every such slot from `figures.json`. Adding a
 figure to a page is one attribute; nothing duplicates the card markup.
+
+Three current-paper panel groups are also shipped directly in both web and
+vector form: `paper_dataset_panels` (Figure 2E&ndash;G),
+`paper_worked_example` (Figure 3E&ndash;G), and `bio_diversity_pairs_panel`
+(Figure 5C). They are displayed directly by `index.html` and `analysis.html`
+because they are already-composed excerpts of larger manuscript figures, not
+standalone entries in the generated figure gallery. Keep the PNG/PDF pairs
+together; Figure 5C additionally includes its source SVG.
 
 `--paper-dir` is optional and drives only the reproduction check. Each
 regenerated PDF is compared against `files/figures/<name>.pdf` under that

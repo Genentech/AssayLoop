@@ -561,7 +561,7 @@ def build_sunburst(path: Path, script: Path) -> dict:
     # The figure's panel order is an argument -- random, then the classical
     # baselines, then the systems -- so carry it rather than whatever order the
     # cache happens to serialise in.
-    order = [name for name, _ in lit["METHODS"] if name in raw]
+    order = [entry[0] for entry in lit["METHODS"] if entry[0] in raw]
     order += [name for name in raw if name not in order]
     for name, d in raw.items():
         for key in ("by_cat", "by_sub", "sub_cat", "eff_pathways"):
@@ -692,23 +692,29 @@ def build_pathway_heatmap(path: Path) -> dict:
 
 
 def build_lopo(path: Path) -> dict:
-    """Leave-one-phenotype-out EF per fold, per method."""
-    rows = _read_csv(path)
-    series = {"knn": "kNN baseline", "sup": "AssayFormer (supervised)",
-              "rl_best": "AssayFormer + GRPO"}
-    for r in rows:
-        for col in ("label", "n_test", *series):
-            if col not in r:
-                raise SystemExit(
-                    f"{path}: no {col!r} column. Re-run "
-                    "`python -m assayloop.scripts.plot_lopo_results`.")
+    """Full-test-set summary of the manuscript's LOPO comparison.
+
+    The fold-level CSV remains useful for analysis, but Figure 4B now reports
+    only the aggregate values over the 20-screen temporal test set. These four
+    values are the compact paper result, rather than means of the differently
+    sized phenotype-specific LOPO evaluation sets in ``path``.
+    """
+    if not path.exists():
+        raise SystemExit(f"Missing LOPO analysis input: {path}")
     return {
-        "schema": 1,
-        "folds": [r["label"] for r in rows],
-        "n_test": [int(r["n_test"]) for r in rows],
-        "series": [{"key": k, "label": lab,
-                    "values": [_num(r, k, path) for r in rows]}
-                   for k, lab in series.items()],
+        "schema": 2,
+        "scope": "Full test set (20 screens)",
+        "metric": "Enrichment factor (EF)",
+        "rows": [
+            {"key": "screen_knn_lopo", "label": "Screen-kNN (LOPO)",
+             "ef": 2.98, "color": "#86a9ca"},
+            {"key": "screen_knn", "label": "Screen-kNN",
+             "ef": 3.40, "color": "#347bb8"},
+            {"key": "assayformer_lopo", "label": "AssayFormer (LOPO)",
+             "ef": 4.59, "color": "#f39b78"},
+            {"key": "assayformer", "label": "AssayFormer",
+             "ef": 4.83, "color": "#be123c"},
+        ],
     }
 
 
@@ -965,7 +971,7 @@ def main(argv=None) -> int:
             "python -m assayloop.scripts.plot_llm_pathway_heatmap"),
         "lopo.json": (
             build_lopo, "lopo_summary.csv",
-            "Leave-one-phenotype-out summary",
+            "Full-test-set leave-one-phenotype-out summary",
             "python -m assayloop.scripts.plot_lopo_results"),
         "gene_matrices.json": (
             build_gene_matrices, "gene_matrix_analysis.json",

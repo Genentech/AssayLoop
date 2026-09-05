@@ -5,7 +5,7 @@
 // before the fetch resolves. This script then overwrites them from
 // assets/data/summary.json, which build_data.py derives from the same table
 // run that results.html and diversity.html read. If a rerun moves the best EF,
-// every place the site says "5.66x" moves with it.
+// every place the site reports the headline enrichment moves with it.
 //
 // If summary.json cannot be loaded, the static values stay on screen and a
 // visible note says so. That is the one case where the site shows a number it

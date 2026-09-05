@@ -19,6 +19,11 @@ evenly across its pathways in the 5-200 gene disease-filtered Reactome GMT,
 pooled over the 20 held-out full-genome screens. "Random" is the annotated gene
 universe, i.e. the expected composition of a uniformly drawn batch.
 
+The effective-pathways row is EP-D from the same scoring path as the results
+table. Direct-LLM columns are replayed from their raw answers against the f2
+universe; Random is shown as the expectation across uniform draws rather than
+one realised sweep.
+
 Aggregated once into ``output/analysis/llm_pathway_heatmap_data.json``; pass
 --refresh to rebuild.
 
@@ -38,19 +43,17 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import LinearSegmentedColormap, TwoSlopeNorm
 
-from assayloop.scripts._figure_io import save_figure
 from assayloop import config
+from assayloop.scripts._figure_io import save_figure
 from assayloop.scripts.pathway_hierarchy import load as load_hierarchy
 from assayloop.scripts.plot_pathway_sunburst import (
-    _effective_n, _gmt_membership, _rarefied_eff, _weights,
+    _effective_n,
+    _gmt_membership,
+    _random_ep_expectation,
+    _run_screen_batches,
+    _weights,
 )
 
-# Runs are looked up locally first, then in the optional shared directory
-# (ASSAYLOOP_RESULTS / ASSAYLOOP_SHARED_PATH).
-RUN_DIRS = [
-    config.RESULTS_PATH / "runs",
-    config.SHARED_PATH / "runs",
-]
 ANALYSIS = config.OUTPUT_PATH / "analysis"
 CACHE = ANALYSIS / "llm_pathway_heatmap_data.json"
 OUT = ANALYSIS / "llm_pathway_heatmap.png"
@@ -65,8 +68,8 @@ METHODS = [
     ("Claude Opus-4.8", "sweep-5e3d4dbc",               "llm"),
     ("Kimi-K2.6",       "sweep-3c93a0fa",               "llm"),
     ("ICBR-EF",         "sweep-210a554b",               "meta"),
-    ("Haystack",        "sweep-f9ae7231",               "search"),
-    ("kNN",             "sweep-fg-f2-fg-knn",           "ranker"),
+    ("Probability-of-Hit", "sweep-f9ae7231",            "search"),
+    ("Screen-kNN",      "sweep-fg-f2-fg-knn",           "ranker"),
     ("BPMF",            "sweep-fg-f2-fg-bpmf",          "ranker"),
     ("AssayFormer",     "sweep-fg-f2-fg-assayloop-s19", "ranker"),
 ]
@@ -95,23 +98,9 @@ DIVERGING = LinearSegmentedColormap.from_list("blue_red", [
 # Aggregation
 # ---------------------------------------------------------------------------
 
-def _run_genes(prefix: str) -> list[str]:
-    """All acquired genes for a sweep, from whichever run root holds it."""
-    for root in RUN_DIRS:
-        dirs = sorted(root.glob(f"{prefix}-[0-9][0-9]-*"))
-        if not dirs:
-            continue
-        genes = []
-        for rd in dirs:
-            fp = rd / "result.json"
-            if not fp.is_file():
-                continue
-            r = json.loads(fp.read_text())
-            for step in r.get("steps", []):
-                genes.extend(step.get("acquired_batch", []))
-        if genes:
-            return genes
-    return []
+def _ep_txt(value, fmt: str = "{:.1f}") -> str:
+    """Render missing rarefied EP values the same way as the table."""
+    return fmt.format(value) if value is not None else "–"
 
 
 def build_cache() -> dict:
@@ -120,30 +109,44 @@ def build_cache() -> dict:
     membership = _gmt_membership()          # leaf sets -- the category shares
     # Level-2 vocabulary for the EP number, so it matches the sunburst and
     # tab:baselines_results. See plot_pathway_sunburst for why the two differ.
-    from assayloop.metrics.effective_pathways import gmt_membership
+    from assayloop.metrics.effective_pathways import (
+        effective_pathways, gmt_membership)
     ep_membership = gmt_membership()
 
     out = {}
-    for label, prefix, _grp in METHODS:
+    for label, prefix, group in METHODS:
         if prefix is None:
             genes = sorted(membership)
+            ep = _random_ep_expectation(ep_membership)
         else:
-            genes = _run_genes(prefix)
+            batches = _run_screen_batches(prefix, replay=group == "llm")
+            genes = [gene for screen in batches for batch in screen for gene in batch]
             if not genes:
                 raise SystemExit(f"no cached runs for {label!r} ({prefix}-NN-*)")
+            ep = effective_pathways(batches, membership=ep_membership)
         by_cat, _by_sub, _sc, by_path, n_ann, n_tot = _weights(
             genes, membership, cat_of, sub_of)
         total = sum(by_cat.values())
         out[label] = {
             "share": {c: w / total for c, w in by_cat.items()},
-            # rarefied, matching the sunburst and tab:baselines_results
-            "eff_pathways": _rarefied_eff(genes, ep_membership),
+            "eff_pathways": ep["ep_dataset"],
+            "ep_batch": ep["ep_batch"],
+            "ep_screen": ep["ep_screen"],
+            "ep_batch_sd": ep.get("ep_batch_sd"),
+            "ep_screen_sd": ep.get("ep_screen_sd"),
+            "ep_dataset_sd": ep.get("ep_dataset_sd"),
             "eff_pathways_raw": _effective_n(by_path.values()),
             "n_picks": n_tot, "n_annotated": n_ann,
             "n_unique": len({g.upper() for g in genes}),
         }
-        print(f"{label:16s} {n_tot:6d} picks  {n_ann / max(n_tot, 1):5.1%} annotated  "
-              f"{out[label]['n_unique']:6d} unique  eff={out[label]['eff_pathways']:6.0f}")
+        print(
+            f"{label:20s} {n_tot:6d} picks  "
+            f"{n_ann / max(n_tot, 1):5.1%} annotated  "
+            f"{out[label]['n_unique']:6d} unique  "
+            f"EP-B={_ep_txt(ep['ep_batch'])}  "
+            f"EP-S={_ep_txt(ep['ep_screen'])}  "
+            f"EP-D={_ep_txt(ep['ep_dataset'])}"
+        )
     ANALYSIS.mkdir(parents=True, exist_ok=True)
     CACHE.write_text(json.dumps(out))
     return out
@@ -228,7 +231,7 @@ def draw(data: dict) -> None:
     axs.set_ylim(3, 0)
     axs.axis("off")
     strip = [
-        ("Effective pathways", lambda d: f"{d['eff_pathways']:.1f}"),
+        ("Effective pathways", lambda d: _ep_txt(d["eff_pathways"])),
         ("Unique genes", lambda d: f"{d['n_unique']:,}"),
         ("Annotated picks", lambda d: f"{d['n_annotated'] / max(d['n_picks'], 1):.0%}"),
     ]

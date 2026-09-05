@@ -50,11 +50,11 @@ OUT = config.OUTPUT_PATH / "analysis" / "llm_label_ablation.png"
 # clutter. Kept here for the caption, which is where the uncertainty belongs --
 # the claim is "positive for every model", not per-model significance.
 DATA = {
-    "Gemini-3.1-Pro":  {"EF": (4.69, 4.35, 0.21), "nAUC": (21.0, 18.7, 1.0)},
-    "GLM-5.1":         {"EF": (3.98, 3.63, 0.15), "nAUC": (17.0, 15.4, 0.5)},
-    "Claude Opus-4.8": {"EF": (3.84, 3.53, 0.28), "nAUC": (17.5, 15.9, 1.0)},
-    "Kimi-K2.6":       {"EF": (2.99, 2.71, 0.18), "nAUC": (14.7, 13.0, 0.8)},
-    "Qwen3.6-27B":     {"EF": (2.50, 2.31, 0.12), "nAUC": (11.2, 10.6, 0.5)},
+    "Gemini-3.1-Pro":  {"EF": (4.71, 4.38, 0.21), "nAUC": (20.6, 18.5, 1.0)},
+    "GLM-5.1":         {"EF": (4.00, 3.65, 0.15), "nAUC": (16.3, 15.0, 0.5)},
+    "Claude Opus-4.8": {"EF": (3.86, 3.55, 0.28), "nAUC": (17.3, 15.8, 1.0)},
+    "Kimi-K2.6":       {"EF": (3.00, 2.72, 0.18), "nAUC": (14.1, 13.0, 0.8)},
+    "Qwen3.6-27B":     {"EF": (2.65, 2.32, 0.12), "nAUC": (10.5, 10.0, 0.5)},
     # The transformer's analogue of "no labels" is its opening ranking: one
     # batch of 1000 with an empty history, no readout ever seen. Different
     # mechanism from the blind LLM prompt, so it sits in its own group -- but
@@ -67,10 +67,10 @@ DATA = {
     "AssayFormer":     {"EF": (4.83, 3.93, 0.40), "nAUC": None},
     # AssayLoop = Gemini-3.1-Pro -> AssayFormer, from assayloop_no_context.py.
     # Both arms are scored with the table's domain-adjusted EF/nAUC, so the
-    # with-feedback side reproduces the LaTeX row exactly (5.66 / 21.7) and the
+    # with-feedback side reproduces the LaTeX row exactly (5.67 / 21.7) and the
     # gap is like-for-like. 14/20 screens improve. Drawn below AssayFormer, the
     # component it is built on, rather than in EF order.
-    "AssayLoop":       {"EF": (5.66, 4.99, 0.29), "nAUC": (21.7, 19.5, 1.5)},
+    "AssayLoop":       {"EF": (5.67, 4.99, 0.29), "nAUC": (21.7, 19.5, 1.5)},
 }
 # rows drawn as a separate group under a rule (blinded by a different mechanism:
 # no readout at all, rather than a prompt with the labels stripped)

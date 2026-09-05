@@ -121,6 +121,16 @@ _LLM_CLIENT_ACQS = {
     "llm",
 }
 
+# These acquisitions do not receive a candidate list in the prompt. By
+# default, evaluate them against the shared f2 gene universe rather than
+# silently discarding valid genes absent from one screen's library.
+_OPEN_VOCAB_LLM_ACQS = {
+    "llm_single",
+    "llm_single_blind",
+    "llm",
+    "llm_single_call",
+}
+
 
 def _llm_with_empty_policy(client, *, retry_on_empty: bool):
     """Return ``client`` with its empty-answer retry policy forced.
@@ -217,8 +227,9 @@ def run(
     no_persist: bool = typer.Option(False, "--no-persist"),
     sweep_id: Optional[str] = typer.Option(None, "--sweep-id", help="Fixed sweep ID (required for --resume to match prior run directories)."),
     resume: bool = typer.Option(False, "--resume", help="Skip screens whose result.json already exists from a prior run."),
-    full_genome: bool = typer.Option(False, "--full-genome", help="Expand candidate pool to the union of genes across all screens in the set, filtered by --min-screen-freq (fair comparison with open-vocab LLMs)."),
-    min_screen_freq: int = typer.Option(2, "--min-screen-freq", help="With --full-genome, keep only genes measured in at least this many screens. The default 2 is the paper's f2 universe (21,147 genes for --screen-set public); 0 keeps the plain union (22,174), which admits pseudogenes and per-library assembly artefacts."),
+    full_genome: bool = typer.Option(False, "--full-genome", help="Expand the candidate pool to the shared gene universe. This is the default for open-vocabulary LLM acquisitions."),
+    screen_library: bool = typer.Option(False, "--screen-library", help="Restrict candidates to each screen library, overriding the open-vocabulary LLM default."),
+    min_screen_freq: int = typer.Option(2, "--min-screen-freq", help="With the shared universe, keep only genes measured in at least this many screens. The default 2 is the paper's f2 universe (21,147 genes for --screen-set public); 0 keeps the plain union (22,174), which admits pseudogenes and per-library assembly artefacts."),
     verbose: bool = typer.Option(True),
 ):
     """Run a single (model, acq) configuration across the resolved screens."""
@@ -260,10 +271,17 @@ def run(
                 f"{acq!r} does not take a system prompt; ignoring it."
             )
 
+    if full_genome and screen_library:
+        raise typer.BadParameter("--full-genome and --screen-library are mutually exclusive")
+    use_full_genome = full_genome or (
+        acq.lower() in _OPEN_VOCAB_LLM_ACQS and not screen_library
+    )
     universe = None
-    if full_genome:
+    if use_full_genome:
         from .tasks import gene_universe, load_screens as _load_screens
-        all_screens = _load_screens(target_set=screen_set, dataset_names=_csv(screen) or None)
+        # The shared universe belongs to the screen set, not an optional
+        # one-screen filter, so runs remain comparable when --screen is used.
+        all_screens = _load_screens(target_set=screen_set)
         universe = gene_universe(all_screens, min_screen_freq=min_screen_freq)
         console.print(
             f"[cyan]full-genome[/cyan]: {len(universe)} genes in candidate "
@@ -324,6 +342,9 @@ def sweep(
     max_shortfall_frac: float = typer.Option(0.5, "--max-shortfall-frac", help="Abort a screen if the running acquisition shortfall fraction (requested - actually acquired) exceeds this. Set to 1.0 (or higher) to disable."),
     model_param: Optional[list[str]] = typer.Option(None, "--model-param", help="Model override as key=value (repeatable)"),
     no_persist: bool = typer.Option(False, "--no-persist"),
+    full_genome: bool = typer.Option(False, "--full-genome", help="Use the shared gene universe for every acquisition. Open-vocabulary LLM acquisitions use it by default."),
+    screen_library: bool = typer.Option(False, "--screen-library", help="Restrict every acquisition to each screen library, overriding the open-vocabulary LLM default."),
+    min_screen_freq: int = typer.Option(2, "--min-screen-freq", help="With the shared universe, keep genes measured in at least this many screens. The default 2 matches the paper."),
     verbose: bool = typer.Option(True),
 ):
     """Run a model x acquisition x seed grid sweep."""
@@ -335,6 +356,23 @@ def sweep(
     acq_names = _csv(acqs)
     seed_vals = [int(s) for s in _csv(seeds)] or [0]
     model_overrides = _parse_kv_params(model_param)
+
+    if full_genome and screen_library:
+        raise typer.BadParameter("--full-genome and --screen-library are mutually exclusive")
+    needs_universe = full_genome or (
+        not screen_library
+        and any(a.lower() in _OPEN_VOCAB_LLM_ACQS for a in acq_names)
+    )
+    universe = None
+    if needs_universe:
+        from .tasks import gene_universe, load_screens as _load_screens
+
+        all_screens = _load_screens(target_set=screen_set)
+        universe = gene_universe(all_screens, min_screen_freq=min_screen_freq)
+        console.print(
+            f"[cyan]full-genome[/cyan]: {len(universe)} genes in candidate "
+            f"universe (freq >= {min_screen_freq})"
+        )
 
     _warn_if_warm_start_wasted(warm_start, acq_names)
 
@@ -371,6 +409,13 @@ def sweep(
             persist=not no_persist,
             parallel=parallel,
             max_shortfall_frac=(None if max_shortfall_frac >= 1.0 else max_shortfall_frac),
+            universe_genes=(
+                universe
+                if full_genome or (
+                    not screen_library and a.lower() in _OPEN_VOCAB_LLM_ACQS
+                )
+                else None
+            ),
         )
         sweep_res = run_sweep(cfg, sweep_id=f"{sweep_id}-{m}-{a}-s{s}", verbose=verbose)
         rows.append((m, a, s, sweep_res))
@@ -1594,92 +1639,92 @@ def train_bpmf(
 _PAPER_FIGURES: dict[str, dict[str, str]] = {
     "main-table": {
         "module": "assayloop.scripts.full_genome_table",
-        "ref": "Table 2",
+        "ref": "Table 1",
         "what": "Main results table: every method on the 20 test screens.",
         "needs": "one sweep per row (see the README's row -> command map)",
     },
     "recovery-curves": {
         "module": "assayloop.scripts.export_recovery_curves",
-        "ref": "Table 2 (companion)",
+        "ref": "Table 1 (companion)",
         "what": "Per-step hit-recovery curves for every method in the main table.",
         "needs": "the same sweeps as main-table",
     },
     "label-ablation": {
         "module": "assayloop.scripts.plot_label_ablation",
-        "ref": "Figure 4",
+        "ref": "Supplementary Figure 11",
         "what": "With vs. without per-round hit labels, one dumbbell per method.",
         "needs": "the llm_single and llm_single_blind sweeps",
     },
     "llm-pathways": {
         "module": "assayloop.scripts.plot_llm_pathway_heatmap",
-        "ref": "Figure 5",
+        "ref": "Supplementary Figure 5",
         "what": "Reactome enrichment heatmap of what biology each LLM goes after.",
         "needs": "the per-LLM sweeps",
     },
     "pathway-sunburst": {
         "module": "assayloop.scripts.plot_pathway_sunburst",
-        "ref": "Figure 6",
+        "ref": "Figure 5A / Supplementary Figure 7",
         "what": "Two-level pathway sunbursts for six representative methods.",
         "needs": "the corresponding sweeps",
     },
     "lopo": {
         "module": "assayloop.scripts.plot_lopo_results",
-        "ref": "Figure 7",
+        "ref": "Figure 4",
         "what": "Leave-one-phenotype-out generalisation.",
         "needs": "a train-ranker run per LOPO split",
     },
     "scaling": {
         "module": "assayloop.scripts.scaling_law_plot",
-        "ref": "Figure 8",
+        "ref": "Figure 4 / Supplementary Figure 10",
         "what": "EF@10 vs. training-set size and vs. model size.",
         "needs": "scaling_law_sweep then scaling_law_eval",
     },
     "embedding-init": {
         "module": "assayloop.scripts.plot_embedding_init_story",
-        "ref": "Figure 9",
+        "ref": "Supplementary Figure 3",
         "what": "Curated-network recovery vs. downstream task performance, by init.",
         "needs": "compute_embedding_matrix + eval_gene_networks per init",
     },
     "embedding-drift": {
         "module": "assayloop.scripts.plot_embedding_drift",
-        "ref": "Figure 10",
+        "ref": "Supplementary Figure 2",
         "what": "How far gene embeddings move during training (BPMF init).",
         "needs": "a checkpoint with saved gene embeddings",
     },
     "handoff-composition": {
         "module": "assayloop.scripts.paper_handoff_composition",
-        "ref": "Figure 11",
+        "ref": "Supplementary Figure 1",
         "what": "Per-round pathway/complex composition of the handoff's hits.",
         "needs": "an eval-ranker-handoff sweep",
     },
     "handoff-timeline": {
         "module": "assayloop.scripts.paper_handoff_timeline",
-        "ref": "Figure 11",
+        "ref": "Supplementary Figure 1",
         "what": "How acquisition behaviour changes at the LLM -> AssayFormer handoff.",
         "needs": "an eval-ranker-handoff sweep",
     },
     "influence": {
         "module": "assayloop.scripts.paper_influence_figure",
-        "ref": "Figures 12-13",
+        "ref": "Figure 5B / Supplementary Figure 9",
         "what": "Context-conditional gene-influence heatmaps (boosted / suppressed).",
         "needs": "compute_influence_matrix",
     },
     "bpmf-organization": {
         "module": "assayloop.scripts.paper_bpmf_k10_organization",
-        "ref": "Figure 14",
+        "ref": "Supplementary Figure 4",
         "what": "How the BPMF K=10 space is organised: HDBSCAN / CORUM / Reactome, "
         "each under PCA and cosine UMAP.",
         "needs": "train-bpmf --K 10",
     },
     "embedding-drift-by-source": {
         "module": "assayloop.scripts.plot_embedding_drift_by_source",
-        "ref": "Figure 15",
+        "ref": "Supplementary Figure 2",
         "what": "Embedding drift during training, for every ablated init.",
         "needs": "one checkpoint per embedding init",
     },
     "diversity": {
         "module": "assayloop.scripts.diversity_analysis",
-        "ref": "Table 2 (VS, PO columns)",
+        "ref": "Table 1 (VS, PO columns)",
         "what": "Vendi score and pathway overlap from stored acquired batches.",
         "needs": "the sweeps being compared",
     },

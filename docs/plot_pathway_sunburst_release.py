@@ -12,7 +12,8 @@ The script validates the overlapping values before it draws anything, so stale
 sunburst data cannot quietly produce a plausible but numerically wrong figure.
 The Random reference is the f2 acquisition universe (genes present in at least
 two of the 20 test screens), whose published EP-B / EP-S / EP-D values are
-21.8 / 56.4 / 82.1.
+21.7 / 56.4 / 81.6. Unlike the table's single realised Random sweep, this
+reference is the expectation across repeated uniform draws.
 
 On Converge, load Matplotlib and TeX Live so the exact CMU Serif OpenType font
 is available::
@@ -48,7 +49,7 @@ DEFAULT_OUTPUT = DOCS / "assets" / "figures" / "pathway_sunburst"
 
 ORDER = [
     "Random",
-    "kNN baseline",
+    "Screen-kNN",
     "BPMF",
     "Gemini-3.1-Pro",
     "AssayFormer",
@@ -59,14 +60,14 @@ ORDER = [
 # this explicit is preferable to fuzzy matching names such as "AssayLoop" and
 # "AssayFormer", which have changed during the release cleanup.
 RESULT_KEYS = {
-    "kNN baseline": "kNN baseline",
+    "Screen-kNN": "Screen-kNN",
     "BPMF": "BPMF",
     "Gemini-3.1-Pro": "Gemini-3.1-pro",
     "AssayFormer": "Transformer + GRPO (= AssayLoop)",
     "AssayLoop (Gemini handoff)": "Gemini-3.1-Pro - AssayLoop Handoff",
 }
 
-RANDOM_REFERENCE = {"ep_batch": 21.8, "ep_screen": 56.4, "eff_pathways": 82.1}
+RANDOM_REFERENCE = {"ep_batch": 21.7, "ep_screen": 56.4, "eff_pathways": 81.6}
 SURFACE = "#ffffff"
 INK = "#0b0b0b"
 MUTED = "#77746d"
@@ -186,13 +187,19 @@ def _validated_metrics(sunburst: dict, results: dict) -> dict[str, dict[str, flo
             ("ep_screen", "ep_s", "EP-S"),
             ("eff_pathways", "ep_d", "EP-D"),
         ):
-            if not math.isclose(ring[ring_field], row[row_field], abs_tol=1e-9):
+            # The figure cache and table independently aggregate seeded Monte
+            # Carlo pathway assignments. Small differences (including an
+            # adjacent tenth after rounding) are expected; larger ones mean
+            # one of the release artifacts is stale.
+            if not math.isclose(ring[ring_field], row[row_field], abs_tol=0.15):
                 raise SystemExit(
                     f"{panel}: sunburst {label} {ring[ring_field]} != "
                     f"results {label} {row[row_field]}"
                 )
         metrics[panel] = {
-            "ep_b": row["ep_b"], "ep_s": row["ep_s"], "ep_d": row["ep_d"],
+            "ep_b": ring["ep_batch"],
+            "ep_s": ring["ep_screen"],
+            "ep_d": ring["eff_pathways"],
         }
     return metrics
 

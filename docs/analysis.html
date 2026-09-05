@@ -43,6 +43,28 @@
 
     <hr class="section-divider"/>
 
+    <h2 id="feedback-example">How feedback changes the next batch</h2>
+    <p>
+      In a representative NF-&kappa;B / TNF signaling screen, AssayFormer recovers 60 of 169 true
+      hits in ten rounds. At round four, the 24 hit labels already observed rerank the next batch:
+      the label-aware policy recovers 11 hits spanning nine pathway categories, compared with seven
+      hits spanning four categories when the labels are withheld. Leave-one-label-out
+      counterfactuals identify which observations drive individual rank changes. For example,
+      CYFIP1 rises from rank 1,078 without labels to rank 18 with labels; withholding just the
+      observed KCTD10 hit lowers CYFIP1 from rank 18 to rank 62.
+    </p>
+    <figure class="hero-figure">
+      <img src="assets/figures/paper_worked_example.png?v=97cf05c3"
+           alt="AssayFormer trajectory on an NF-kappa-B screen, a comparison of the next batch with and without hit labels, and rank changes caused by experimental feedback." loading="lazy"/>
+      <figcaption>
+        <strong>Figure 3E&ndash;G: a worked AssayFormer trajectory.</strong> The complete trajectory
+        (E), composition of the fourth batch with and without labels (F), and changes in candidate
+        rank induced by the observed outcomes (G).
+      </figcaption>
+    </figure>
+
+    <hr class="section-divider"/>
+
     <h2 id="pathways">LLMs converge on similar biological programs</h2>
     <p>
       The heatmap aggregates every requested gene across the 20 test screens and assigns it to a
@@ -54,7 +76,7 @@
     <p>
       The LLMs have strikingly similar acquisition signatures. They favor RNA and protein
       metabolism while under-representing bulk metabolism and developmental biology. Differences
-      among LLMs are small compared with their differences from methods such as kNN, and their
+      among LLMs are small compared with their differences from methods such as Screen-kNN, and their
       effective pathway counts fall in a narrow range. Kimi-K2.6 and Claude Opus-4.8 also request
       fewer unique genes because they often return fewer than the requested 100 genes, possibly
       reflecting constraints from biological safety training. Hover any cell to see its raw
@@ -72,7 +94,9 @@
       for the target when the probe is added to the context as a hit. The interactive matrix uses
       12 canonical cancer drivers as probes and 19 representative functional-module genes, plus
       ATM, as targets. Orange means the observation raises the target score; blue means it lowers
-      it.
+      it. Figure 5B deliberately uses a fixed, generic screen description and averages over ten
+      randomized 50-gene background histories, isolating context-independent relationships learned
+      by the model.
     </p>
     <p>
       In the full analysis, influences among cancer drivers are generally weak, consistent with
@@ -87,14 +111,33 @@
     <div class="plot" id="influence-matrix"></div>
     <p class="figure-caption" id="influence-matrix-caption"></p>
 
-    <h3>Potential relationships beyond canonical annotations</h3>
     <p>
-      To focus on hypothesis generation, we remove gene pairs already represented in STRING,
-      CORUM, SIGNOR, or Reactome and examine the strongest remaining positive and negative
-      influences. Figure 9 summarizes the resulting candidate relationships and the biological
-      evidence that makes them testable.
+      After removing pairs already represented in STRING, CORUM, SIGNOR, MSigDB, or Reactome, the
+      strongest remaining positive and negative influences provide candidate hypotheses rather
+      than established interactions.
     </p>
     <div data-figures="influence"></div>
+
+    <h3>From generic to screen-specific context</h3>
+    <p>
+      The generic context in Figure 5B motivates a stricter question: because AssayFormer conditions
+      jointly on the screen description and observed history, do learned influences change in real,
+      specific assay contexts? Figure 5C searches for relationships that are substantially stronger
+      in one held-out screen than across the other 19. Both genes must be true hits in the focal
+      screen, and pairs already represented in STRING, CORUM, SIGNOR, MSigDB, or Reactome are
+      excluded.
+    </p>
+    <figure class="hero-figure">
+      <img src="assets/figures/bio_diversity_pairs_panel.svg?v=cf017fe3"
+           alt="Three screen-specific gene links with model influence in the matching screen versus other screens and a literature-supported biological rationale." loading="lazy"/>
+      <figcaption>
+        <strong>Figure 5C: literature-supported, screen-specific gene links.</strong> DCAF1 and
+        ZNF638 converge on the HUSH complex; IGHMBP2 and GCN1 connect through the response to
+        stalled ribosomes; and GTF3C1 and the ACTR5-containing INO80 complex converge at tRNA
+        genes. The darker bar is influence in the matching screen and the lighter bar is the mean
+        across the other 19 test screens.
+      </figcaption>
+    </figure>
   </div>
 </main>
 

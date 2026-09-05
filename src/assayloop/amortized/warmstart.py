@@ -14,8 +14,9 @@ Sources
   record's step-``(k+1)`` user message embeds an "Active-Learning History" listing
   rounds ``1..k`` with explicit Hits/Non-hits. The max-step (step 10) record for a
   trace therefore lists rounds 1..9. ~3 traces per screen ((seed,trace_idx)).
-- Val/test: shared run dirs ``result.json`` -> ``steps[].acquired_batch`` (genes,
-  in acquisition order) gives a single clean 10-round trace per screen.
+- Val/test: shared run dirs ``result.json``. When a universe is supplied, saved
+  raw LLM answers are replayed so valid out-of-library genes are retained;
+  legacy/library-only callers use ``steps[].acquired_batch``.
 """
 
 from __future__ import annotations
@@ -111,11 +112,18 @@ def load_train_traces(jsonl_path: str | Path) -> dict[str, list[Trace]]:
     return traces
 
 
-def load_run_traces(runs_dir: str | Path, prefix: str) -> dict[str, list[Trace]]:
+def load_run_traces(
+    runs_dir: str | Path,
+    prefix: str,
+    *,
+    universe_genes: Iterable[str] | None = None,
+    batch_size: int = 100,
+) -> dict[str, list[Trace]]:
     """Parse shared run dirs ``<prefix>*/result.json`` -> ``{screen_name: [trace]}``.
 
-    ``steps[].acquired_batch`` holds the per-round acquired gene symbols in order.
-    Screen name is taken from ``result.json``'s ``task_id`` (``option2/<name>``).
+    When ``universe_genes`` is supplied, raw saved LLM answers are reparsed and
+    any valid universe genes are retained. Otherwise this preserves the legacy
+    acquired batches. Screen name comes from ``task_id`` (``option2/<name>``).
     """
     base = Path(runs_dir)
     traces: dict[str, list[Trace]] = {}
@@ -130,7 +138,43 @@ def load_run_traces(runs_dir: str | Path, prefix: str) -> dict[str, list[Trace]]
         name = str(r.get("task_id", "")).split("/")[-1]
         if not name:
             continue
-        rounds = [list(s.get("acquired_batch") or []) for s in (r.get("steps") or [])]
+        steps = r.get("steps") or []
+        if universe_genes is not None:
+            from ..llm.replay import (
+                load_logged_response_texts,
+                normalise_gene_batches,
+                replay_llm_steps,
+            )
+            acquisition = str((r.get("config") or {}).get("acquisition") or "")
+            is_direct_llm = (
+                acquisition.startswith("llm_single")
+                or any(
+                    "response_text" in (s.get("acquisition_trace") or {})
+                    for s in steps
+                )
+            )
+            if is_direct_llm:
+                responses = load_logged_response_texts(
+                    d, expected_steps=len(steps)
+                )
+                rounds = replay_llm_steps(
+                    steps,
+                    universe_genes,
+                    batch_size=batch_size,
+                    response_texts=responses,
+                )
+            else:
+                # Models such as LLMNN and ICBR use LLM calls internally, but
+                # their greedy acquisition is the scored ``acquired_batch``.
+                # Replaying the internal prose as a direct gene list changes
+                # the method being evaluated.
+                rounds = normalise_gene_batches(
+                    [s.get("acquired_batch") or [] for s in steps],
+                    universe_genes,
+                    batch_size=batch_size,
+                )
+        else:
+            rounds = [list(s.get("acquired_batch") or []) for s in steps]
         if rounds:
             traces.setdefault(name, []).append(rounds)
     log.info("warm-start: loaded %d run screens (%d traces) from %s/%s*",
@@ -156,8 +200,22 @@ class WarmStart:
         return cls(load_train_traces(path))
 
     @classmethod
-    def from_run_dirs(cls, runs_dir: str | Path, prefix: str) -> "WarmStart":
-        return cls(load_run_traces(runs_dir, prefix))
+    def from_run_dirs(
+        cls,
+        runs_dir: str | Path,
+        prefix: str,
+        *,
+        universe_genes: Iterable[str] | None = None,
+        batch_size: int = 100,
+    ) -> "WarmStart":
+        return cls(
+            load_run_traces(
+                runs_dir,
+                prefix,
+                universe_genes=universe_genes,
+                batch_size=batch_size,
+            )
+        )
 
     def has(self, name: str) -> bool:
         return bool(self.traces.get(name))

@@ -118,7 +118,7 @@ PANEL_CAPTIONS = {
         "adaptation to beat the prior."),
     "H": (
         "Held-out recovery curves. AssayLoop finds 27.7% of hits within an effective "
-        "5% of the library, an enrichment factor of 5.66 over a random model."),
+        "5% of the library, an enrichment factor of 5.67 over a random model."),
 }
 
 

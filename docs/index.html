@@ -4,7 +4,7 @@
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>AssayLoop: Amortized Adaptive Hit Discovery in CRISPR Screens</title>
-<meta name="description" content="AssayLoop is a sequential experimental design framework for adaptive hit discovery in CRISPR screens. It recovers 27.7% of hits after assaying only 5% of the candidate library."/>
+<meta name="description" content="AssayLoop combines language-model biological priors with an amortized acquisition policy for adaptive hit discovery, reaching 5.67-fold enrichment and recovering 27.7% of hits at approximately 5% of the candidate library."/>
 <link rel="stylesheet" href="assets/css/site.css?v=4b58e340"/>
 <script src="https://cdn.plot.ly/plotly-2.32.0.min.js" charset="utf-8"></script>
 </head>
@@ -91,21 +91,25 @@
       Many biological discovery problems require experiments to be selected sequentially under
       constrained budgets. CRISPR screening is a prominent example, as exhaustive perturbation
       testing is often infeasible and candidate perturbations must instead be prioritized over
-      multiple experimental rounds. Existing approaches face complementary limitations. Large
-      language models provide broad biological prior knowledge but often struggle to learn
-      in-context from feedback collected over successive experimental rounds. Classical sequential
-      design methods adapt to observed outcomes but lack extensive biological prior knowledge. We
-      introduce AssayBench-Loop, a sequential experimental design framework for adaptive hit
-      discovery in CRISPR screens. We train a model, AssayFormer, which learns an amortized
-      acquisition policy from historical screens, allowing screening strategies to transfer across
-      assays while adapting to feedback from the current experiment. It further incorporates
-      language-model-derived biological priors through an adaptive handoff strategy, AssayLoop,
-      using LLM guidance for early-round prioritization before transitioning to the learned policy
-      AssayFormer. In retrospective evaluations on held-out screens, AssayLoop recovers 27.7% of
-      hits after assaying only 5% of the candidate library and outperforms all evaluated sequential
-      design baselines. These results demonstrate that combining transferable biological priors with
-      feedback-adaptive policies can substantially improve hit discovery under constrained
-      experimental budgets.
+      multiple experimental rounds. Despite the importance of this problem, existing benchmarks
+      for adaptive hit discovery remain limited in scale and diversity. Here, we introduce
+      AssayBench-Loop, a large-scale benchmark for adaptive hit discovery comprising 1,389 CRISPR
+      screens across five phenotype categories. Beyond enabling systematic evaluation, the scale
+      of AssayBench-Loop makes it possible to learn acquisition strategies across historical
+      experiments. Building on this resource, we introduce AssayLoop, a new acquisition policy for
+      adaptive hit discovery that combines the strengths of large language models and a trained
+      policy. At the core of AssayLoop is AssayFormer, a transformer-based amortized acquisition
+      policy trained across historical screens to transfer screening strategies to new assays while
+      adapting to observations collected during the current experiment. AssayLoop complements this
+      learned policy with language-model-derived biological priors through an adaptive handoff
+      strategy, using LLM guidance for early-round prioritization before transitioning to the
+      learned policy; we further show with AssayLLM, a domain-specific post-trained LLM, that
+      sequential acquisition capabilities can be transferred to smaller models. On temporally
+      held-out screens, AssayLoop achieves a 5.67-fold enrichment over random selection and recovers
+      27.7% of hits after assaying only approximately 5% of the candidate library, outperforming
+      existing adaptive-design methods, standalone LLMs, and AssayFormer alone. These results
+      demonstrate the value of learning acquisition policies across historical experiments and
+      combining them with broad biological priors for efficient active hit discovery.
     </p>
 
     <h2>Headline findings</h2>
@@ -137,7 +141,7 @@
       <!-- Rows in the paper's results table. index.js replaces this with the
            number that actually carried a result on the build, which is lower
            whenever build_data.py ran with --allow-unavailable. -->
-      <div class="stat-card"><div class="stat-value" data-stat="n_methods">56</div><div class="stat-label">Methods compared</div></div>
+      <div class="stat-card"><div class="stat-value" data-stat="n_methods">57</div><div class="stat-label">Methods compared</div></div>
       <!-- No data-stat: the training-set size is a property of the training
            corpus, and summary.json is built from the *evaluation* table. -->
       <div class="stat-card"><div class="stat-value">1,349</div><div class="stat-label">Training screens</div></div>
@@ -149,6 +153,25 @@
            of the main table. Keep in step with COLUMNS in assets/js/results.js. -->
       <div class="stat-card"><div class="stat-value">8</div><div class="stat-label">Evaluation metrics</div></div>
     </div>
+
+    <h2 id="benchmark-characterization">A benchmark built for transfer</h2>
+    <p>
+      The held-out screens are deliberately unlike the historical screens used for training, hit
+      frequencies are strongly long-tailed, and assay hit rates span several orders of magnitude.
+      Together, these properties make the benchmark a test of transfer and adaptation rather than
+      memorization of familiar screens or universally frequent hits.
+    </p>
+    <figure class="hero-figure">
+      <img src="assets/figures/paper_dataset_panels.png?v=852e0957"
+           alt="Three benchmark-characterization panels showing nearest-screen hit-set overlap, the long-tailed frequency with which genes are hits, and the unnormalized number of screens across hit rates." loading="lazy"/>
+      <figcaption>
+        <strong>Figure 2E&ndash;G: benchmark characterization.</strong> Test screens have little
+        hit-set overlap with their nearest training neighbor (E); historical hit frequency has a
+        pronounced long tail dominated at its head by common-essential genes (F); and screen hit
+        rates vary by orders of magnitude (G). Panel G reports raw screen counts rather than a
+        normalized density.
+      </figcaption>
+    </figure>
 
     <hr class="section-divider"/>
 
@@ -163,7 +186,7 @@
       <a class="feature-card" href="recovery.html">
         <div class="feature-kicker">Interactive</div>
         <h3>Recovery curves</h3>
-        <p>Watch hits accumulate round by round for any subset of the 58 methods.</p>
+        <p>Watch hits accumulate round by round for any subset of the 59 methods.</p>
         <div class="feature-cta">Open the explorer →</div>
       </a>
       <a class="feature-card" href="diversity.html">

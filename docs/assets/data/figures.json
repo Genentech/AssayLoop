@@ -7,7 +7,7 @@
    "key":"pipeline",
    "title":"Overview of AssayLoop.",
    "caption":"AssayBench becomes a sequential decision problem (A&ndash;B). AssayFormer is initialised from BPMF embeddings, trained to predict assay hits from prior experimental context, then improved with RL under a context-delta reward that pays only for using the feedback (C&ndash;E). Three paradigms for hit discovery (F); AssayLoop combines the second and third (G&ndash;H).",
-   "section":"Figure 1 &middot; Introduction",
+   "section":"Figure 3 &middot; Methods",
    "image":"assets/figures/pipeline.png",
    "pdf":"assets/figures/pipeline.pdf"
   },
@@ -15,7 +15,7 @@
    "key":"figure1",
    "title":"The task, end to end.",
    "caption":"A screen is a library of genes, a phenotype, and a hit set. A method sees the phenotype and whatever it has already assayed, and must choose the next hundred genes. Ten rounds, then the score.",
-   "section":"Figure 2 &middot; Introduction",
+   "section":"Figure 1 &middot; Introduction",
    "image":"assets/figures/figure1.png?v=2d3c8d2f",
    "pdf":"assets/figures/figure1.pdf"
   },
@@ -23,23 +23,15 @@
    "key":"ef_metrics",
    "title":"Metrics used in AssayBench-Loop.",
    "caption":"Adjusted EF and nAUC, effective-budget terms, a worked comparison across hit-rich and hit-sparse screens, recovery trajectories, and the complementary diagnostics reported in the paper.",
-   "section":"Figure 3 &middot; Methods",
+   "section":"Supplementary Figure 6 &middot; Metrics",
    "image":"assets/figures/ef_metrics.png?v=a536792e",
    "pdf":"assets/figures/ef_metrics.pdf"
-  },
-  {
-   "key":"lopo",
-   "title":"Leave-one-phenotype-out (LOPO) generalization.",
-   "caption":"For each phenotype, we compare models trained on all five phenotypes (dark bars) with models trained on the remaining four (LOPO, light bars). AssayFormer consistently outperforms Screen-kNN across all phenotypes and both training regimes. Both methods lose performance under LOPO, but AssayFormer maintains strong absolute performance across all held-out phenotypes, whereas Screen-kNN degrades substantially on Fitness and Trafficking. The rightmost group shows performance on the full test set for reference.",
-   "section":"Figure 4 &middot; Results",
-   "image":"assets/figures/lopo.png?v=8047c285",
-   "pdf":"assets/figures/lopo.pdf"
   },
   {
    "key":"scaling",
    "title":"Performance scales with data, but not model size.",
    "caption":"AssayFormer models trained on 1 to all training screens. Both SFT and RL improve with more screens, and RL sits above SFT throughout. The gain concentrates in the first few acquisition steps &mdash; by 20,000 genes sampled even a random policy has found most of the hits.",
-   "section":"Figure 5 &middot; Results",
+   "section":"Figure 4 / Supplementary Figure 10 &middot; Results",
    "image":"assets/figures/scaling.svg",
    "pdf":"assets/figures/scaling.pdf"
   },
@@ -47,15 +39,15 @@
    "key":"pathway_sunburst",
    "title":"Biological pathway distribution of each method.",
    "caption":"Proposed genes categorised by Reactome pathway across six representative methods. Inner ring: the eight top-level Reactome categories plus a pooled remainder. Outer ring: Reactome's second tier. At the centre, the effective number of pathways &mdash; the count of equally-weighted pathways that would produce the same spread.",
-   "section":"Figure 6 &middot; Results",
+   "section":"Figure 5A / Supplementary Figure 7 &middot; Results",
    "image":"assets/figures/pathway_sunburst.svg?v=ac97d4ea",
    "pdf":"assets/figures/pathway_sunburst.pdf"
   },
   {
    "key":"llm_pathway_heatmap",
    "title":"LLMs converge to similar distributions of biology across families.",
-   "caption":"Top-level Reactome composition of requested genes, aggregated across the 20 test screens. Random is the pathway distribution produced by uniform sampling over the candidate universe. Cells show the ratio of the observed pathway share to Random, with red indicating over-representation and blue under-representation. LLMs share a strong emphasis on RNA and protein metabolism and under-represent bulk metabolism and developmental biology. Differences among LLMs are small compared with their differences from baseline methods such as kNN.",
-   "section":"Figure 7 &middot; Results",
+   "caption":"Top-level Reactome composition of requested genes, aggregated across the 20 test screens. Random is the pathway distribution produced by uniform sampling over the candidate universe. Cells show the ratio of the observed pathway share to Random, with red indicating over-representation and blue under-representation. LLMs share a strong emphasis on RNA and protein metabolism and under-represent bulk metabolism and developmental biology. Differences among LLMs are small compared with their differences from baseline methods such as Screen-kNN.",
+   "section":"Supplementary Figure 5 &middot; Results",
    "image":"assets/figures/llm_pathway_heatmap.svg",
    "pdf":"assets/figures/llm_pathway_heatmap.pdf"
   },
@@ -63,15 +55,15 @@
    "key":"rollout_composition",
    "title":"Qualitative analysis of AssayLoop on two biologically distinct screens.",
    "caption":"The figure compares AssayFormer, Gemini-3.1-Pro, and the AssayLoop handoff on an NF-&kappa;B / TNF signaling screen and an AAV transgene silencing screen. In each panel, the upper histogram shows the Reactome composition of each proposed batch and the lower histogram shows the composition of its hits. Gemini and AssayFormer begin with substantially different pathway compositions. Gemini finds more hits in the first three rounds but drops off afterward; once AssayFormer takes over, it proposes different genes with a higher hit yield. AssayFormer also selects more genes in the Other category, consistent with Gemini favoring well-known genes and pathways. Gemini does not always use its full acquisition budget.",
-   "section":"Figure 8 &middot; Results",
+   "section":"Supplementary Figure 1 &middot; Results",
    "image":"assets/figures/rollout_composition.svg",
    "pdf":"assets/figures/rollout_composition.pdf"
   },
   {
    "key":"influence",
    "title":"Candidate relationships beyond canonical annotations.",
-   "caption":"After removing gene pairs represented in STRING, CORUM, SIGNOR, and Reactome, we examine the strongest remaining influences as candidates for hypothesis generation. Among the positive pairs, adding MYC to the hit history raises the predicted probability of SMU1 and PRPF4. This association with spliceosome factors agrees with evidence that oncogenic MYC regulates spliceosome programs and creates dependence on core splicing machinery. Adding MDM2 raises EMG1 and PNO1, two factors required for small-subunit ribosome biogenesis. Disrupting ribosome biogenesis can stabilize p53 through the RPL5/RPL11-5S-RNP-MDM2 nucleolar-surveillance pathway; specifically, PNO1 depletion has been shown to increase RPL11-MDM2 association and stabilize p53 in TP53-wild-type colorectal cancer cells.<br><br>Among the negative influences, the model suggests both novel connections, such as PIK3CA to MIS18BP1, and relationships with pathway-level precedent. SMAD4 to NDUFS7 and NFU1 connects SMAD4 with mitochondrial function. SMAD4 loss reduces mitochondrial respiration and confers resistance to biguanide complex-I inhibitors in pancreatic cancer models, providing a context-specific rationale for NDUFS7, although these specific pairs remain experimentally unvalidated. NRAS to AMOTL2 has similarly indirect precedent: oncogenic NRAS activates Hippo signaling in melanocytes, while parallel BRAF-driven MAPK activation reduces expression of the YAP/TAZ target AMOTL2; AMOTL2 itself has not been directly tested under NRAS mutation.<br><br>The positive pairs recover established biological dependencies, while the negative updates suggest uncharacterized pathway relationships. Together they provide specific, testable hypotheses about vulnerabilities and mechanisms of resistance.",
-   "section":"Figure 9 &middot; Results",
+   "caption":"After removing gene pairs represented in STRING, CORUM, SIGNOR, MSigDB, and Reactome, we examine the strongest remaining influences as candidates for hypothesis generation. Among the positive pairs, adding MYC to the hit history raises the predicted probability of SMU1 and PRPF4. This association with spliceosome factors agrees with evidence that oncogenic MYC regulates spliceosome programs and creates dependence on core splicing machinery. Adding MDM2 raises EMG1 and PNO1, two factors required for small-subunit ribosome biogenesis. Disrupting ribosome biogenesis can stabilize p53 through the RPL5/RPL11-5S-RNP-MDM2 nucleolar-surveillance pathway; specifically, PNO1 depletion has been shown to increase RPL11-MDM2 association and stabilize p53 in TP53-wild-type colorectal cancer cells.<br><br>Among the negative influences, the model suggests both novel connections, such as PIK3CA to MIS18BP1, and relationships with pathway-level precedent. SMAD4 to NDUFS7 and NFU1 connects SMAD4 with mitochondrial function. SMAD4 loss reduces mitochondrial respiration and confers resistance to biguanide complex-I inhibitors in pancreatic cancer models, providing a context-specific rationale for NDUFS7, although these specific pairs remain experimentally unvalidated. NRAS to AMOTL2 has similarly indirect precedent: oncogenic NRAS activates Hippo signaling in melanocytes, while parallel BRAF-driven MAPK activation reduces expression of the YAP/TAZ target AMOTL2; AMOTL2 itself has not been directly tested under NRAS mutation.<br><br>The positive pairs recover established biological dependencies, while the negative updates suggest uncharacterized pathway relationships. Together they provide specific, testable hypotheses about vulnerabilities and mechanisms of resistance.",
+   "section":"Figure 5B / Supplementary Figure 9 &middot; Results",
    "image":"assets/figures/influence.svg",
    "pdf":"assets/figures/influence.pdf"
   },
@@ -79,7 +71,7 @@
    "key":"influence_heatmap",
    "title":"Influence heatmap over canonical drivers.",
    "caption":"The same measurement as a dense matrix. The first 12 genes are canonical cancer drivers; the next 19 are representative functional-module genes.",
-   "section":"Figure 10 &middot; Results",
+   "section":"Supplementary Figure 8 &middot; Results",
    "image":"assets/figures/influence_heatmap.svg",
    "pdf":"assets/figures/influence_heatmap.pdf"
   },
@@ -87,7 +79,7 @@
    "key":"recovering_biology",
    "title":"Recovering textbook biology does not predict task usefulness.",
    "caption":"Initial embeddings are evaluated by how well cosine similarity recovers gene&ndash;gene relationships from STRING, CORUM, SIGNOR, and Reactome. AUROC is calculated for each database and averaged across all four. Embeddings that most closely recover these databases, including GenePT and K562, are harder to train AssayFormer on, whereas matrix-factorization initializations learned from historical screens are most useful.",
-   "section":"Figure 12 &middot; Results",
+   "section":"Supplementary Figure 3 &middot; Results",
    "image":"assets/figures/recovering_biology.svg",
    "pdf":"assets/figures/recovering_biology.pdf"
   },
@@ -95,7 +87,7 @@
    "key":"label_ablation",
    "title":"Performance with and without per-round hit labels.",
    "caption":"The same ten-round loop, run once with the previous rounds' hit labels in the prompt and once without. The gap separates a method's ability to use experimental feedback from its warm-start prior. Every LLM family benefits from the feedback, and so do AssayFormer and the AssayLoop system built on it &mdash; the two rows below the rule, which are blinded by seeing no readout at all rather than by a prompt with the labels stripped.",
-   "section":"Figure 13 &middot; Results",
+   "section":"Supplementary Figure 11 &middot; Results",
    "image":"assets/figures/label_ablation.svg",
    "pdf":"assets/figures/label_ablation.pdf"
   },
@@ -103,7 +95,7 @@
    "key":"embedding_drift",
    "title":"Embedding drift during training for all ablated embedding types.",
    "caption":"The effect of training on embedding geometry differs dramatically by embedding type. BPMF embeddings show near-perfect preservation of gene neighborhoods, while other initializations undergo substantial reorganization during supervised pretraining.",
-   "section":"Figure 14 &middot; Appendix D",
+   "section":"Supplementary Figure 2 &middot; Results",
    "image":"assets/figures/embedding_drift.png",
    "pdf":"assets/figures/embedding_drift.pdf"
   }

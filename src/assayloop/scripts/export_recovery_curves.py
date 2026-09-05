@@ -10,11 +10,10 @@ exactly as the table does:
   n_out_of_universe       gene not in the f2 universe (hallucinated / out-of-domain)
   cum_hits                in-library picks that are true hits
 
-The curves count genes that were *assayed*, which for most methods is every gene
-the run acquired. The finetuned-LLM rows are the exception: their harness kept
-reading a round's submission until it had 100 genes worth assaying and dropped
-the rest, so for those only the taken genes are counted. See
-:func:`_batches_from_jsonl`.
+Direct gene-list LLM curves replay the raw logged response against the f2
+universe, matching the table's open-vocabulary scoring. Other methods use the
+genes the run acquired. The finetuned-LLM harness records the genes it actually
+assayed in ``new_hits`` and ``new_misses``; see :func:`_batches_from_jsonl`.
 
 Two files are written to output/analysis/:
   recovery_curves_by_screen.csv   one row per (method, screen, step)  [full detail]
@@ -33,10 +32,12 @@ from pathlib import Path
 import numpy as np
 
 from assayloop import config
+from assayloop.llm.replay import load_logged_response_texts, replay_llm_steps
 from assayloop.tasks import load_screens
 from assayloop.scripts.full_genome_table import (
     METHODS, HANDOFF_METHODS, JSONL_HANDOFF_METHODS, RAW_SWEEP_METHODS,
     LLM_METHODS, JSONL_METHODS, RUNS_DIR, SHARED_RUNS_DIR,
+    _handoff_sweep_id,
     clean_label as _clean_label, resolve_name as _resolve_name,
 )
 from assayloop.scripts.results_index import (
@@ -201,6 +202,10 @@ def main():
         n = emit_sweep(name, sweep_id)
         log.info("%-40s %3d screens", name, n)
 
+    random_sweep = f"sweep-{SWEEP_TAG}-fg-random-uniform"
+    n = emit_sweep("Random", random_sweep)
+    log.info("%-40s %3d screens", "Random", n)
+
     # 2) RAW_SWEEP (BioBO, Haystacks) -- RUNS or SHARED --------------------
     last = None
     for label, sweep_id in RAW_SWEEP_METHODS:
@@ -212,12 +217,12 @@ def main():
     last = None
     for label, *_r, sweep_suffix in HANDOFF_METHODS:
         name, last = _resolve_name(_clean_label(label), last)
-        n = emit_sweep(name, f"sweep-{SWEEP_TAG}-{sweep_suffix}")
+        n = emit_sweep(name, _handoff_sweep_id(SWEEP_TAG, sweep_suffix))
         log.info("%-40s %3d screens", name, n)
     last = None
-    for label, _path, _ck, _nw, sweep_suffix in JSONL_HANDOFF_METHODS:
+    for label, _path, _ck, _ckpt_file, _nw, sweep_suffix in JSONL_HANDOFF_METHODS:
         name, last = _resolve_name(_clean_label(label), last)
-        n = emit_sweep(name, f"sweep-{SWEEP_TAG}-{sweep_suffix}")
+        n = emit_sweep(name, _handoff_sweep_id(SWEEP_TAG, sweep_suffix))
         log.info("%-40s %3d screens", name, n)
 
     # 4) LLM_METHODS (resolve sweep -> per_screen run_id -> result.json) --
@@ -231,6 +236,9 @@ def main():
             log.warning("%-40s NOT FOUND (%s)", name, lookup_key)
             continue
         _, _, sd = hit
+        is_direct_llm = str(sd.get("config", {}).get("acq", "")).startswith(
+            "llm_single"
+        )
         found = 0
         for ps in sd.get("per_screen", []):
             sn = ps.get("screen_name", "")
@@ -239,7 +247,20 @@ def main():
             fp = _find_run_result(rid) if rid else None
             if s is None or fp is None:
                 continue
-            emit(name, s, _batches_from_result(fp))
+            if is_direct_llm:
+                run_data = json.loads(fp.read_text())
+                steps = run_data.get("steps") or []
+                batches = replay_llm_steps(
+                    steps,
+                    universe,
+                    batch_size=BATCH_SIZE,
+                    response_texts=load_logged_response_texts(
+                        fp.parent, expected_steps=len(steps)
+                    ),
+                )
+            else:
+                batches = _batches_from_result(fp)
+            emit(name, s, batches)
             found += 1
         log.info("%-40s %3d screens", name, found)
 

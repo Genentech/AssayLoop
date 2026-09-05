@@ -26,6 +26,13 @@
                   ablations: "hide", order: "value" };
   let DATA = null;
 
+  // The manuscript now uses the descriptive method name Probability-of-Hit.
+  // Keep the underlying result key unchanged so this page still joins cleanly
+  // to the shared benchmark JSON.
+  function methodLabel(text) {
+    return S.methodLabel(text === "Haystacks" ? "Probability-of-Hit" : text);
+  }
+
   function isAblationRow(row) {
     return row.family === "ablation" || row.display === "- hit labels";
   }
@@ -84,7 +91,7 @@
     const trace = {
       type: "bar", orientation: "h",
       x: rows.map((r) => r[state.scope]),
-      y: rows.map((r) => S.methodLabel(r.name)),
+      y: rows.map((r) => methodLabel(r.name)),
       marker: { color: rows.map((r) => S.familyColor(r.family)) },
       hovertemplate: `<b>%{y}</b><br>${scope.short}: %{x}<extra></extra>`,
     };
@@ -108,12 +115,12 @@
     const why = [];
     if (belowFloor.length) {
       const retention = Math.round(DATA.retention_floor * 100);
-      why.push(`Not shown: ${belowFloor.map((r) => S.methodLabel(r.name)).join(", ")} ` +
+      why.push(`Not shown: ${belowFloor.map((r) => methodLabel(r.name)).join(", ")} ` +
                `&mdash; fewer than ${retention}% of their units contain enough ` +
                `Reactome-annotated genes to be scored. <a href="#floor">Why.</a>`);
     }
     if (notRun.length) {
-      why.push(`Also missing: ${notRun.map((r) => S.methodLabel(r.name)).join(", ")} ` +
+      why.push(`Also missing: ${notRun.map((r) => methodLabel(r.name)).join(", ")} ` +
                `&mdash; not evaluated on this build, so nothing was measured ` +
                `at any scope.`);
     }
@@ -140,7 +147,7 @@
         type: "scatter", mode: "markers", name: f.label,
         x: sub.map((r) => r[state.scatterScope]),
         y: sub.map((r) => r.ef),
-        text: sub.map((r) => S.methodLabel(r.name)),
+        text: sub.map((r) => methodLabel(r.name)),
         marker: { color: f.color, size: 10, line: { color: "#ffffff", width: 1 } },
         hovertemplate: `<b>%{text}</b><br>${scope.short}: %{x}<br>` +
                        `EF: %{y:.2f}<extra></extra>`,

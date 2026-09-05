@@ -60,11 +60,6 @@
     <h2>Reading the columns</h2>
     <ul class="bullets" id="notes"></ul>
 
-    <hr class="section-divider"/>
-
-    <h2 id="lopo">Does it generalize to phenotypes it never saw?</h2>
-    <div data-figures="lopo"></div>
-
     <h2 id="scaling">Scaling</h2>
     <p>
       <strong>Performance scales with data, but not model size.</strong> AssayFormer models
@@ -97,6 +92,22 @@
     </p>
     <div class="plot" id="ablation-chart"></div>
 
+    <hr class="section-divider"/>
+
+    <h2 id="lopo">Does it generalize to phenotypes it never saw?</h2>
+    <p>
+      Yes. We remove every training screen belonging to the phenotype category being evaluated and
+      then score the resulting leave-one-phenotype-out models across the full 20-screen test set.
+      AssayFormer falls from EF 4.83 to 4.59, a smaller drop than Screen-kNN (3.40 to 2.98), and the
+      LOPO AssayFormer remains above Screen-kNN trained on all phenotypes.
+    </p>
+    <div class="plot" id="lopo-chart"></div>
+    <p class="figure-caption">
+      <span class="label">Generalization to unseen phenotypes.</span> Enrichment factor on the full
+      test set for Screen-kNN and AssayFormer, trained either on all phenotype categories or with
+      the evaluated category excluded. This replaces the earlier per-phenotype breakdown.
+    </p>
+
     <p class="footnote" id="dash">
       A dash in an EP column is a refusal to score, not a zero: a method whose picks are mostly
       unannotated cannot supply enough genes to calculate the metric.
@@ -109,6 +120,6 @@
 <script src="assets/js/site.js?v=e7f8b5b1" data-build="0074cd0d"></script>
 <script src="assets/js/figure-strip.js?v=2438d889"></script>
 <script src="assets/js/results.js?v=286d2020"></script>
-<script src="assets/js/lopo.js?v=69505eca"></script>
+<script src="assets/js/lopo.js?v=560d9f70"></script>
 </body>
 </html>

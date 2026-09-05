@@ -24,11 +24,12 @@
 #                      of whose models are already retired, so unlike the
 #                      rows above they are not something a reader can rerun.
 #
-#   assayloop-llm-calls-v1.tar.gz   29M, optional (--with-llm-calls).
+#   assayloop-llm-calls-v1.tar.gz   29M, required for exact LLM replay.
 #                      The raw prompts and completions for those same runs.
-#                      Not needed to reproduce a single number in the paper;
-#                      useful if you want to look at what the models actually
-#                      said. 360 runs (BioBO and Haystacks issue no LLM calls).
+#                      Current metrics reparse completions against the shared
+#                      f2 universe, so this archive is fetched by default. Use
+#                      --without-llm-calls only if you do not plan to rebuild
+#                      metrics. 360 runs (BioBO and Haystacks issue no calls).
 #
 # REDACTION
 #
@@ -50,11 +51,12 @@ TARGET="${ASSAYLOOP_PUBLISHED:-$REPO_ROOT/output/published}"
 BASE="${ASSAYLOOP_BUNDLE_URL:-https://github.com/Genentech/AssayLoop/releases/download/data-v1}"
 
 FORCE=0
-WITH_CALLS=0
+WITH_CALLS=1
 for arg in "$@"; do
   case "$arg" in
     --force)           FORCE=1 ;;
     --with-llm-calls)  WITH_CALLS=1 ;;
+    --without-llm-calls) WITH_CALLS=0 ;;
     -h|--help)         sed -n '2,45p' "${BASH_SOURCE[0]}" | sed 's/^# \?//'; exit 0 ;;
     *) echo "unknown argument: $arg (try --help)" >&2; exit 2 ;;
   esac
@@ -122,7 +124,7 @@ fetch_and_unpack "assayloop-sweeps-v1.tar.gz"
 if [[ $WITH_CALLS -eq 1 ]]; then
   fetch_and_unpack "assayloop-llm-calls-v1.tar.gz"
 else
-  echo "  [skip] assayloop-llm-calls-v1.tar.gz (pass --with-llm-calls for raw prompts)"
+  echo "  [skip] assayloop-llm-calls-v1.tar.gz (exact raw-response replay unavailable)"
 fi
 
 n_sweeps=$(find "$TARGET/sweeps" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l)

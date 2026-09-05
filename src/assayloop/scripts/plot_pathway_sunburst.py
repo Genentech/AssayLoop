@@ -28,9 +28,15 @@ Each panel reports the same metric at all three scopes of
 :mod:`assayloop.metrics.effective_pathways`, matching tab:baselines_results:
 EP-D in the hole (all picks pooled), EP-B and EP-S in the footer (per batch and
 per screen, averaged). All three are rarefied to fixed annotated-gene counts, so
-the scopes are *not* comparable to one another -- only down a column. The Random
-panel's EP-B/EP-S are uniform draws of the same size from the annotated
-universe, i.e. the reference value at each scope.
+the scopes are *not* comparable to one another -- only down a column.
+
+Matching the table means reading each run the way the table reads it, which is
+not the same for every panel; :func:`_run_screen_batches` is the single place
+that knows the difference, and the LLM pathway heatmap shares it. The Random
+panel is the one deliberate exception: the table's Random row is one realised
+uniform-draw sweep, while a reference panel should not inherit that draw's
+luck, so here it is the expectation over draws (see
+:func:`_random_ep_expectation`).
 
 Data comes from the cached full-genome run results (steps[].acquired_batch),
 20 test screens x 1000 picks per method. Aggregated once into
@@ -45,31 +51,42 @@ from __future__ import annotations
 import argparse
 import json
 import math
-from collections import defaultdict
+from collections import Counter, defaultdict
+from pathlib import Path
 
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib.patches import Patch
 
-from assayloop.scripts._figure_io import save_figure
 from assayloop import config
+from assayloop.llm.replay import load_logged_response_texts, replay_llm_steps
+from assayloop.scripts._figure_io import save_figure
 from assayloop.scripts.pathway_hierarchy import load as load_hierarchy
 
-RUNS_DIR = config.OUTPUT_PATH / "runs"
+RUN_DIRS = [
+    config.RESULTS_PATH / "runs",
+    config.SHARED_PATH / "runs",
+    config.PUBLISHED_PATH / "runs",
+]
 ANALYSIS = config.OUTPUT_PATH / "analysis"
 CACHE = ANALYSIS / "pathway_sunburst_data.json"
 OUT = ANALYSIS / "pathway_sunburst.png"
 
-# (panel title, run-dir glob prefix)
+BUDGET, BATCH_SIZE, MIN_SCREEN_FREQ = 1000, 100, 2
+N_RANDOM_DRAWS = 24
+RANDOM_DRAW_SEED = 10_000
+
+# (panel title, run-dir glob prefix, how the results table reads the run)
 # "Random" is synthesised from the gene universe, not from runs.
 METHODS = [
-    ("Random",                    None),
-    ("kNN baseline",              "sweep-fg-f2-fg-knn"),
-    ("BPMF",                      "sweep-fg-f2-fg-bpmf"),
-    ("Gemini-3.1-Pro",            "sweep-a79fd5ce"),
-    ("AssayFormer",               "sweep-fg-f2-fg-assayloop-s19"),
-    ("AssayLoop (Gemini handoff)", "sweep-fg-f2-fg-handoff-gemini-s19-n3"),
+    ("Random",                    None,                                    None),
+    ("Screen-kNN",                "sweep-fg-f2-fg-knn",                   "greedy"),
+    ("BPMF",                      "sweep-fg-f2-fg-bpmf",                  "greedy"),
+    ("Gemini-3.1-Pro",            "sweep-a79fd5ce",                       "replay"),
+    ("AssayFormer",               "sweep-fg-f2-fg-assayloop-s19",         "greedy"),
+    ("AssayLoop (Gemini handoff)", "sweep-fg-f2-fg-handoff-gemini-s19-n3", "greedy"),
 ]
 
 N_CATS = 8          # inner-ring categories kept; the tail folds into "Other"
@@ -124,60 +141,91 @@ def _weights(genes, membership, cat_of, sub_of):
     return dict(by_cat), dict(by_sub), sub_cat, dict(by_path), n_ann, len(genes)
 
 
-def _run_genes(prefix: str) -> list[str]:
-    genes = []
-    for rd in sorted(RUNS_DIR.glob(f"{prefix}-[0-9][0-9]-*")):
-        fp = rd / "result.json"
-        if not fp.is_file():
-            continue
-        r = json.loads(fp.read_text())
-        for step in r.get("steps", []):
-            genes.extend(step.get("acquired_batch", []))
-    return genes
+_UNIVERSE: list[str] | None = None
 
 
-def _run_screen_batches(prefix: str) -> list[list[list[str]]]:
-    """``screen -> batch -> genes``, the shape ``effective_pathways`` wants."""
-    out = []
-    for rd in sorted(RUNS_DIR.glob(f"{prefix}-[0-9][0-9]-*")):
-        fp = rd / "result.json"
-        if not fp.is_file():
-            continue
-        r = json.loads(fp.read_text())
-        out.append([s.get("acquired_batch", []) for s in r.get("steps", [])])
+def _f2_universe() -> list[str]:
+    """Build the same multi-screen acquisition universe as the table."""
+    global _UNIVERSE
+    if _UNIVERSE is None:
+        from assayloop.tasks import load_screens
+
+        screens = load_screens(target_set="public")
+        freq: Counter = Counter()
+        for screen in screens:
+            for gene in set(screen.genes):
+                freq[gene] += 1
+        _UNIVERSE = sorted(
+            gene for gene, count in freq.items() if count >= MIN_SCREEN_FREQ
+        )
+    return _UNIVERSE
+
+
+def _random_ep_expectation(ep_membership) -> dict:
+    """Return mean EP and its spread across uniform full-genome sweeps."""
+    from assayloop.metrics.effective_pathways import effective_pathways
+    from assayloop.tasks import load_screens
+
+    n_screens = len(load_screens(target_set="public"))
+    universe = np.array(_f2_universe())
+    rows = []
+    for rep in range(N_RANDOM_DRAWS):
+        rng = np.random.default_rng(RANDOM_DRAW_SEED + rep)
+        screens = []
+        for _ in range(n_screens):
+            pick = universe[rng.choice(len(universe), size=BUDGET, replace=False)]
+            screens.append([
+                list(pick[i:i + BATCH_SIZE])
+                for i in range(0, BUDGET, BATCH_SIZE)
+            ])
+        ep = effective_pathways(screens, membership=ep_membership)
+        rows.append([ep["ep_batch"], ep["ep_screen"], ep["ep_dataset"]])
+
+    values = np.array(rows, dtype=float)
+    out = {}
+    for index, scope in enumerate(("ep_batch", "ep_screen", "ep_dataset")):
+        out[scope] = float(values[:, index].mean())
+        out[f"{scope}_sd"] = float(values[:, index].std(ddof=1))
     return out
 
 
-def _rarefied_eff(genes, membership, m=None, r=None, scope="dataset") -> float:
-    """``exp(H)`` over ``genes``, rarefied to ``m`` annotated genes.
+def _run_dirs(prefix: str) -> list[Path]:
+    """Find all completed cached runs for one sweep."""
+    for root in RUN_DIRS:
+        dirs = [
+            path
+            for path in sorted(root.glob(f"{prefix}-[0-9][0-9]-*"))
+            if (path / "result.json").is_file()
+        ]
+        if dirs:
+            return dirs
+    return []
 
-    Defaults to the EP-D reference count, so the hole number matches
-    tab:baselines_results -- pass the level-2 ``ep_membership``, not the leaf
-    one the rings are drawn from. One pathway is drawn per gene per replicate,
-    as in the table, and the outer ring is the expectation of that same
-    assignment, so the hole summarises the ring it sits inside. Against the old
-    fractional plug-in this shifts the panels but leaves their ranking; see
-    :mod:`assayloop.metrics.effective_pathways` for why the plug-in cannot be
-    used at batch scope.
 
-    ``scope`` picks which of the table's three RNG streams to draw from, and
-    has to agree with ``m``: a fresh ``default_rng(SEED)`` is a different draw
-    from the one the table's dataset pass used, which lands the number ~0.1 off
-    on Monte-Carlo noise alone.
+def _run_screen_batches(
+    prefix: str, *, replay: bool = False, min_batch: int = 0
+) -> list[list[list[str]]]:
+    """Return ``screen -> batch -> genes`` as the table scores each run.
+
+    Direct gene-list LLMs are replayed from their unabridged logged response
+    against the shared f2 universe. Greedy scorers use their stored batches.
     """
-    from assayloop.metrics.effective_pathways import (
-        M_DATASET, R_DATASET, _Unit, scope_rng)
-    pid_of: dict[str, int] = {}
-    for ps in membership.values():
-        for p in ps:
-            pid_of.setdefault(p, len(pid_of))
-    u = _Unit(genes, membership, pid_of)
-    rng = scope_rng(scope)
-    v = u.rarefied(m or M_DATASET, r or R_DATASET, rng)
-    # Too few annotated genes to hit the reference count: fall back to all of
-    # them, still averaging over the pathway assignment, rather than switching
-    # estimator mid-figure.
-    return u.rarefied(None, r or R_DATASET, rng) if v is None else v
+    out = []
+    for run_dir in _run_dirs(prefix):
+        steps = json.loads((run_dir / "result.json").read_text()).get("steps", [])
+        if replay:
+            batches = replay_llm_steps(
+                steps,
+                _f2_universe(),
+                batch_size=BATCH_SIZE,
+                response_texts=load_logged_response_texts(
+                    run_dir, expected_steps=len(steps)
+                ),
+            )
+        else:
+            batches = [step.get("acquired_batch") or [] for step in steps]
+        out.append([batch for batch in batches if len(batch) >= min_batch])
+    return out
 
 
 def build_cache() -> dict:
@@ -186,37 +234,25 @@ def build_cache() -> dict:
     membership = _gmt_membership()          # leaf sets -- the rings
     # ...and the level-2 vocabulary the table scores over -- the numbers.
     from assayloop.metrics.effective_pathways import (
-        M_BATCH, M_SCREEN, R_BATCH, R_SCREEN, effective_pathways, gmt_membership)
-    from assayloop.tasks import gene_universe, load_screens
+        effective_pathways, gmt_membership)
     ep_membership = gmt_membership()
-    # Random is the expectation under the same f2 acquisition universe used by
-    # every evaluated method.  Using ``sorted(membership)`` here instead (the
-    # historical implementation) silently changes the population to every gene
-    # annotated by Reactome: 10,480 genes rather than the 21,147-gene candidate
-    # universe, and produces EP-D=80.4 instead of the published 82.1.
-    random_genes = gene_universe(load_screens(target_set="public"),
-                                 min_screen_freq=2)
 
     out = {}
-    for title, prefix in METHODS:
+    for title, prefix, read in METHODS:
         if prefix is None:
-            genes = random_genes
-            # No runs to batch up: a uniform draw of M_BATCH / M_SCREEN annotated
-            # genes from the universe *is* the reference value at those scopes.
-            ep_b = _rarefied_eff(genes, ep_membership, M_BATCH, R_BATCH, "batch")
-            ep_s = _rarefied_eff(genes, ep_membership, M_SCREEN, R_SCREEN, "screen")
-            ep_d = _rarefied_eff(genes, ep_membership)
+            genes = sorted(membership)
+            ep = _random_ep_expectation(ep_membership)
         else:
-            genes = _run_genes(prefix)
+            batches = _run_screen_batches(
+                prefix,
+                replay=read == "replay",
+                min_batch=0 if read == "replay" else 2,
+            )
+            genes = [gene for screen in batches for batch in screen for gene in batch]
             if not genes:
                 raise SystemExit(f"no cached runs for {title!r} ({prefix}-NN-*)")
-            # All three from the one call, so the panel matches the table
-            # digit for digit: effective_pathways threads a single RNG through
-            # batch -> screen -> dataset, and recomputing EP-D from a fresh
-            # default_rng(SEED) lands ~0.1 away on Monte-Carlo noise alone.
-            ep = effective_pathways(_run_screen_batches(prefix),
-                                    membership=ep_membership)
-            ep_b, ep_s, ep_d = ep["ep_batch"], ep["ep_screen"], ep["ep_dataset"]
+            ep = effective_pathways(batches, membership=ep_membership)
+        ep_b, ep_s, ep_d = ep["ep_batch"], ep["ep_screen"], ep["ep_dataset"]
         by_cat, by_sub, sub_cat, by_path, n_ann, n_tot = _weights(
             genes, membership, cat_of, sub_of)
         out[title] = {
@@ -224,6 +260,9 @@ def build_cache() -> dict:
             "eff_pathways": ep_d,
             "eff_pathways_raw": _effective_n(by_path.values()),
             "ep_batch": ep_b, "ep_screen": ep_s,
+            "ep_batch_sd": ep.get("ep_batch_sd"),
+            "ep_screen_sd": ep.get("ep_screen_sd"),
+            "ep_dataset_sd": ep.get("ep_dataset_sd"),
             "n_picks": n_tot, "n_annotated": n_ann,
         }
         print(f"{title:32s} {n_tot:7d} picks  {n_ann / max(n_tot,1):5.1%} annotated  "
@@ -267,7 +306,7 @@ def draw(data: dict) -> None:
                              subplot_kw={"aspect": "equal"})
     fig.patch.set_facecolor(SURFACE)
 
-    for ax, (title, _prefix) in zip(axes.ravel(), METHODS):
+    for ax, (title, _prefix, _read) in zip(axes.ravel(), METHODS):
         d = data[title]
         ax.set_facecolor(SURFACE)
         ax.axis("off")

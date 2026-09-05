@@ -20,12 +20,12 @@ For each required sweep:
     sweeps/<sweep_id>/sweep.json      aggregate + per-screen final metrics
     runs/<run_id>/result.json         per-round acquired batches and metrics
 
-``result.json`` is the only per-run file any analysis code reads. Per-run
-``config.json`` (13.6 MB across the bundle, near-identical between runs) is
-deliberately excluded -- nothing reads it, and it is a secret-bearing file.
-``llm_calls.jsonl`` (the raw prompts and completions) is not needed to
-reproduce a single number; it is published as a separate optional archive via
-``--with-llm-calls`` for people studying what the models actually said.
+Per-run ``config.json`` (13.6 MB across the bundle, near-identical between
+runs) is deliberately excluded -- nothing reads it, and it is a secret-bearing
+file. ``llm_calls.jsonl`` (the raw prompts and completions) is published as a
+separate archive via ``--with-llm-calls``. It is required for exact replay of
+open-vocabulary LLM rows: ``result.json`` abbreviates long trace strings, while
+the current metrics reparse the complete answer against the shared f2 universe.
 
 The required sweep IDs are not hardcoded here. They are resolved from
 ``full_genome_table``'s own method tables at build time, so the bundle cannot
@@ -49,7 +49,7 @@ USAGE
         --results  /path/to/output \\
         --shared   /path/to/dashboard_files
 
-    # optionally also build the raw LLM call log archive
+    # also build the raw LLM call log archive required for exact metric replay
     python scripts/build_sweep_bundle.py --out dist/ --with-llm-calls ...
 
 Roots may also come from ``ASSAYLOOP_RESULTS`` / ``ASSAYLOOP_SHARED_PATH``.
@@ -432,8 +432,9 @@ def build(args) -> int:
             "bundle": f"assayloop-llm-calls-{BUNDLE_VERSION}",
             "description": (
                 "Raw per-call LLM prompts and completions for the sweeps in "
-                f"{SWEEP_ARCHIVE}. Not required to reproduce any number in the "
-                "paper; published for analysis of model behaviour."
+                f"{SWEEP_ARCHIVE}. Required for exact raw-response replay of "
+                "the open-vocabulary LLM rows and also published for analysis "
+                "of model behaviour."
             ),
             "n_runs": n_calls,
         }, indent=2) + "\n")
@@ -491,6 +492,11 @@ way to get that right is `scripts/fetch_sweeps.sh`.
 `MANIFEST.json` lists every sweep with the table row it backs, the model and
 acquisition it used, and its run IDs.
 
+Exact open-vocabulary LLM metrics also require the companion
+`assayloop-llm-calls-v1.tar.gz`, because the evaluator reparses the lossless
+completion against the shared gene universe. `scripts/fetch_sweeps.sh` fetches
+and merges both archives by default.
+
 ## Why these are shipped and other sweeps are not
 
 The AssayFormer, BPMF and random rows are deterministic given the released
@@ -516,7 +522,7 @@ def main() -> int:
     ap.add_argument("--shared", default=os.getenv("ASSAYLOOP_SHARED_PATH"),
                     help="secondary result root")
     ap.add_argument("--with-llm-calls", action="store_true",
-                    help=f"also build {CALLS_ARCHIVE} (raw prompts/completions)")
+                    help=f"also build {CALLS_ARCHIVE}, required for exact LLM replay")
     ap.add_argument("--dry-run", action="store_true",
                     help="build into a throwaway directory and delete it; use "
                          "to check the secret scan and the sizes")

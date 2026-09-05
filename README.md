@@ -75,15 +75,17 @@ uv run assayloop eval-ranker --checkpoint <ckpt-dir> --ckpt-file model_last.pt
 Collect the LLM warm start, then hand off to the ranker:
 
 ```bash
-uv run assayloop run --model null --acq llm_single --screen-set public --full-genome \
+uv run assayloop run --model null --acq llm_single --screen-set public \
     --lm-config configs/lm/collect-gemini-3.1-pro.yaml
 
 uv run assayloop eval-ranker-handoff \
     --checkpoint <rl-ckpt-dir> --ckpt-file model_last.pt \
     --warm-dir output/runs --warm-prefix sweep-<id>- --n 3
 ```
-The first `--n` rounds are replayed from that sweep, then AssayFormer continues with them as
-context. For the llm provider you set `ASSAYLOOP_LLM_PROVIDER` and that provider's key in `.env`.
+Open-vocabulary LLM acquisitions use the paper's shared f2 gene universe by default; pass
+`--screen-library` only when you explicitly want per-screen filtering. The first `--n` rounds
+are replayed from that sweep, then AssayFormer continues with them as context. For the llm
+provider you set `ASSAYLOOP_LLM_PROVIDER` and that provider's key in `.env`.
 
 ## Screen sets
 
@@ -182,7 +184,7 @@ To reach your method from the CLI, add a branch to `make_model` in
 
 | Command | Size | Needed for |
 |---|---|---|
-| `bash scripts/fetch_sweeps.sh` | 5.5 MB | the published LLM and external-baseline runs behind the paper's table |
+| `bash scripts/fetch_sweeps.sh` | 35 MB | the published LLM/external-baseline runs and full call logs needed for exact raw-response replay |
 | `bash scripts/fetch_presage_cache.sh` | 3.4 GB | `knn`, `rf`, `biobo`, `llmnn`, Vendi diversity |
 | `bash scripts/fetch_gene_sets.sh` | MSigDB | `bio_ucb`, pathway metrics, the sunburst figure |
 | `bash scripts/fetch_ground_truth.sh` | STRING / CORUM / SIGNOR | network-recovery analysis |

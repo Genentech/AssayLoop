@@ -88,8 +88,7 @@ cannot ask you to pay to repeat:
 
 | What | Command | Needed for |
 |---|---|---|
-| Published sweep bundle (5.5 MB) | `bash scripts/fetch_sweeps.sh` | the LLM and external-baseline rows of Table 2 |
-| Raw LLM prompts/completions (29 MB, optional) | `bash scripts/fetch_sweeps.sh --with-llm-calls` | inspecting what the models actually said |
+| Published sweeps + call logs (35 MB) | `bash scripts/fetch_sweeps.sh` | exact raw-response replay for the LLM and external-baseline rows of Table 1 |
 
 **Nothing silently substitutes for a missing download.** A model that needs the PRESAGE
 cache raises `MissingPresageCache` (or `MissingPresageSource` for one absent source) and
@@ -166,12 +165,13 @@ Import both through the package (`from assayloop.tasks import make_task, load_sc
 
 ### Shortfall is never padded
 
-When an acquisition under-supplies — an LLM returns fewer than `batch_size` valid genes, or
-names genes outside the library — the loop **does not** fill the gap with random picks. The
-batch is recorded at its true size and the difference is tracked as `shortfall_count_step` /
-`shortfall_frac` on every round, so a method's score reflects only genes it actually chose.
-This matters for the open-vocabulary LLM baselines, which pay a real shortfall penalty
-(column SF in the results table).
+When an acquisition under-supplies — an LLM returns fewer than `batch_size` usable genes,
+repeats an acquired gene, or names a symbol outside the configured candidate universe — the
+loop **does not** fill the gap with random picks. The batch is recorded at its true size and
+the difference is tracked as `shortfall_count_step` / `shortfall_frac` on every round, so a
+method's score reflects only genes it actually chose. A valid f2-universe gene that is absent
+from the current screen library is still retained; the paper's SF column records that
+separate out-of-library rate.
 
 `--max-shortfall-frac` (default `1.0`, i.e. off) aborts a screen whose running shortfall
 exceeds the threshold and counts it as `n_failed` in the aggregate, rather than letting a
@@ -226,7 +226,7 @@ The paper's columns and the keys they come from in `result.json`:
 | **EF** | `n_hits_vs_random` | hits found ÷ hits a uniform-random policy would find. 1.0 = random. |
 | **nAUC** | `hits_auc / hits_auc_best` | area under cumulative-hits-vs-budget, as a fraction of the best possible ordering |
 | **FH** | `frac_hits` | fraction of the screen's hits recovered within the budget |
-| **SF** | `shortfall_frac` | fraction of requested slots the policy failed to fill |
+| **SF** | table export | fraction of accepted picks outside the current screen's measured library |
 | **%ess** | — | share of picks that are DepMap common-essential genes (a "cheating" proxy: essentials are hits in most screens) |
 | **VS** | — | Vendi diversity of the acquired batches |
 | **PO** | — | intra-batch pathway overlap vs. random |
@@ -262,11 +262,19 @@ Sweep aggregates prefix each metric with `mean_` / `min_` / `max_` over screens.
 | `greedy` | top-K by score, with ε-exploration and random tie-breaks | yes |
 | `ucb` | `score + β·√uncertainty` | yes (needs uncertainty) |
 | `bio_ucb` | BioBO's acquisition: UCB reweighted by a decaying πBO prior (Hvarfner et al., 2022) from a hypergeometric pathway-enrichment test over observed hits. Converges to plain `ucb` as evidence accumulates. Loads MSigDB Hallmark at construction. | yes (needs uncertainty) |
-| `llm_single` | **open-vocabulary**: the LLM is *not* shown a candidate list, only the description and AL history, and returns symbols from its own knowledge. Filtered to the unrevealed pool afterwards — out-of-library picks become shortfall. | no |
+| `llm_single` | **open-vocabulary**: the LLM is *not* shown a candidate list, only the description and AL history, and returns symbols from its own knowledge. Its output is filtered to the unrevealed shared f2 universe afterwards; valid genes outside the current screen library are retained, while repeats and symbols outside that universe become unfilled slots. | no |
 | `llm_single_blind` | ablation: same, but hit/non-hit labels are hidden. The LLM still sees which genes were sampled (so it won't repeat them) but cannot learn from outcomes. If this matches `llm_single`, the feedback loop is doing nothing. | no |
 
 The LLM → AssayFormer handoff is not an `--acq`; it is its own command,
 [`eval-ranker-handoff`](#the-handoff-assayloop-itself).
+
+In the retrospective full-universe evaluation, a valid f2 gene can be absent from one
+screen's measured library. The task keeps the acquisition, marks it with
+`metadata.in_library=false`, and supplies a false hit label because that screen has no
+positive observation for it; the labeled LLM history therefore groups it with non-hits.
+This is the convention used by the published trajectories. Changing it to an explicit
+"unmeasured" state would define a different feedback protocol and requires a fresh
+evaluation rather than a presentation-only update.
 
 ### Choosing the LLM
 
@@ -326,24 +334,26 @@ pure-Python per step and won't speed up; that's expected.
 
 ## Reproducing the paper's main table
 
-Table 2 compares every method on the 20 public test screens with a **full-genome candidate
-pool** (`--full-genome`): classical models normally pick from the screen's ~18k library
-while LLMs pick from the whole genome, so the pool is unified to the union across screens
-and every method faces the same choice set.
+Table 1 compares every method on the 20 public test screens with a **full-genome candidate
+pool** (`--full-genome` for classical methods; the default for open-vocabulary LLMs).
+Classical models normally pick from the screen's ~18k library while LLMs pick from the whole
+genome, so the pool is unified to the union across screens and every method faces the same
+choice set.
 
 That pool is the **f2 universe** — the union kept to genes measured in at least two of the
 twenty libraries, 21,147 genes. The one-screen tail is mostly pseudogenes and per-library
 assembly artefacts; the unfiltered union is 22,174. One function builds it,
-`assayloop.tasks.gene_universe(screens, min_screen_freq=2)`, and `--full-genome` and
-`full_genome_table.py --min-screen-freq 2` both go through it. Pass `--min-screen-freq 0`
-for the unfiltered union.
+`assayloop.tasks.gene_universe(screens, min_screen_freq=2)`. The open-vocabulary default,
+`--full-genome`, and `full_genome_table.py --min-screen-freq 2` all go through it. Pass
+`--min-screen-freq 0` for the unfiltered union.
 
 Half the table you regenerate, half you download. The AssayFormer, BPMF, MAML and random
 rows are deterministic given a checkpoint, so the table generator just re-runs them — minutes
 on a GPU. The LLM and external-baseline rows are not reproducible in the same sense: they are
 ~400 paid API runs spread over nine vendors, several of whose models have since been retired.
-Those we publish as a 5.5 MB bundle of the exact `sweep.json` and `result.json` files the
-paper's numbers were computed from.
+Those we publish as the exact `sweep.json`, `result.json`, and lossless LLM call logs the
+paper's numbers were computed from. The call logs matter because current evaluation reparses
+the original answer against the shared f2 universe; `result.json` abbreviates long trace text.
 
 ```bash
 bash scripts/fetch_sweeps.sh                      # -> output/published (or $ASSAYLOOP_PUBLISHED)
@@ -371,7 +381,7 @@ individual runs:
 
 ```bash
 # --- Base LLMs (rows: GLM-5.1, Gemini-3.1-pro, GPT-5.6 Sol) ---
-uv run assayloop run --model null --acq llm_single --screen-set public --full-genome \
+uv run assayloop run --model null --acq llm_single --screen-set public \
     --lm-config configs/lm/collect-GLM-5.1.yaml       # swap in any configs/lm/collect-*.yaml
 
 # --- Classical / heuristic ---

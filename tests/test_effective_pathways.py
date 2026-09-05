@@ -139,28 +139,33 @@ def test_units_too_small_to_rarefy_are_dropped_and_counted():
     assert out["ep_dataset_raw"] is not None
 
 
-def test_material_drop_rate_suppresses_the_mean():
-    """Below RETENTION the survivors are the well-annotated units -- report a dash."""
+def test_very_low_retention_suppresses_the_mean():
+    """Below RETENTION, too few surviving units produce a reportable mean."""
     mem = {f"G{i}": (f"P{i}",) for i in range(400)}
-    # Half the batches can supply M_BATCH annotated genes, half cannot. Both
-    # halves are "full" by pick count, so only annotation depth separates them.
-    unannotated = [f"X{i}" for i in range(400)]
+    # One fifth of the batches can supply M_BATCH annotated genes. Every batch
+    # is full by pick count, so only annotation depth separates them.
+    unannotated = [f"X{i}" for i in range(1_000)]
     sb = []
     for s in range(4):
         rich = [f"G{s * 50 + i}" for i in range(50)]
-        poor = [f"G{200 + s * 5 + i}" for i in range(5)] + \
-               [unannotated[s * 45 + i] for i in range(45)]
-        sb.append([rich, poor])
+        poor = []
+        for b in range(4):
+            offset = (s * 4 + b) * 45
+            poor.append(
+                [f"G{200 + s * 20 + b * 5 + i}" for i in range(5)]
+                + unannotated[offset:offset + 45]
+            )
+        sb.append([rich, *poor])
 
     out = effective_pathways(sb, membership=mem)
 
-    assert out["ep_batch_retention"] == pytest.approx(0.5)
+    assert out["ep_batch_retention"] == pytest.approx(0.2)
     assert out["ep_batch_retention"] < RETENTION
     assert out["ep_batch"] is None
-    # The drop count spans every scope: the 4 poor batches, plus the 4 screens
+    # The drop count spans every scope: the 16 poor batches, plus the 4 screens
     # and the pooled dataset, none of which reach their own reference counts on
     # a corpus this small.
-    assert out["ep_n_dropped"] == 9
+    assert out["ep_n_dropped"] == 21
     assert out["ep_batch_raw"] is not None
 
 

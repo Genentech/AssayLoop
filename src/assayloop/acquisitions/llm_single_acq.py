@@ -23,10 +23,10 @@ which is what the AssayBench leaderboard scores.
 Post-LLM filtering
 ------------------
 
-The LLM's output is parsed, deduped, upper-cased, and then filtered
-to genes that are (a) in the screen's library AND (b) still in the
-unrevealed candidate pool (so already-validated genes are not
-re-suggested even if the LLM repeats them).
+The LLM's output is parsed, deduped, upper-cased, and then filtered to
+genes still in the unrevealed acquisition pool. By default that pool is
+the shared f2 gene universe used in the paper; ``--screen-library``
+restricts it to the current screen's measured library instead.
 """
 
 from __future__ import annotations
@@ -38,9 +38,9 @@ from typing import Any
 
 from assaybench.core.acquisition import AcquisitionFunction
 from assaybench.core.types import ModelPrediction, StepRecord
-from ..llm.client import LLMClientConfig, complete_ex
 from assaybench.llm.history_format import format_history_by_round
-from assaybench.llm.parse_genes import extract_gene_list, organism_suffix
+from ..llm.client import LLMClientConfig, complete_ex
+from ..llm.parse_genes import extract_gene_list, organism_suffix
 
 log = logging.getLogger("assayloop.acquisitions.llm_single")
 
@@ -148,7 +148,8 @@ class LLMSingleAcquisition(AcquisitionFunction):
     The LLM is NOT shown a candidate list — it picks from its own
     knowledge of the genome (matching AssayBench's standard ranking
     prompt). The acquisition then filters the LLM's output to genes
-    that are still in the unrevealed candidate pool.
+    that are still in the unrevealed acquisition pool (the shared f2
+    universe by default, or the screen library when explicitly requested).
 
     Args:
         llm: LLMClientConfig. Defaults to the env-resolved vLLM/GLM-5
@@ -298,19 +299,14 @@ class LLMSingleAcquisition(AcquisitionFunction):
         picks_raw = extract_gene_list(text)
         # Build an upper-case index of unrevealed candidates (the
         # acquisition is open-vocab, but we must still only acquire
-        # genes the task knows about and hasn't already revealed).
+        # genes in the configured pool that have not already been revealed).
         cand_upper = {str(c).upper(): c for c in candidates}
         n_matched = 0
         n_already_revealed = 0
         n_unknown = 0
-        # We need a separate "in-library but already revealed" check.
-        # The inner loop's `candidates` only contains unrevealed library
-        # genes, so an LLM pick that's in the library but already
-        # revealed will fall into "n_unknown" here unless we have the
-        # full library. The dataset's task_context exposes
-        # ``num_genes`` but not the full gene list, so for now we
-        # collapse the two failure modes into "out-of-pool". This is
-        # exposed honestly via shortfall.
+        # The inner loop passes only unrevealed candidates. A repeated pick
+        # and a symbol outside the configured universe therefore both miss
+        # this index and are reported together as out-of-pool shortfall.
         picked: list[Any] = []
         seen: set[Any] = set()
         for g in picks_raw:

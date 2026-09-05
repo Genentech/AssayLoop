@@ -16,7 +16,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-DATASET="${1:-${REPO_ROOT}/output/datasets/public_train_screens.json}"
+DATASET="${1:-${REPO_ROOT}/output/datasets/train_screens.json}"
 SIF_PATH="${ASSAYLOOP_AGENT_SANDBOX_SIF:-${REPO_ROOT}/output/containers/agent_sandbox.sif}"
 DEF_FILE=$(mktemp /tmp/agent_sandbox_XXXXXX.def)
 

@@ -1,7 +1,7 @@
 """Option 1 driver: per-target inner loops over an evaluation set.
 
 Iterates over a list of target screens (default: the 20 public test screens;
-``--target-set public_validation`` for the validation set, or pass
+``--target-set paper_validation`` for the validation set, or pass
 ``--targets`` for explicit ``dataset_name``s) and runs one
 ``SequentialLoop`` per target. Candidate training screens are drawn from
 ``--pool-set``, the public training fold by default.
@@ -33,9 +33,9 @@ from .task import AssayBenchScreenSelectionTask, build_pool
 
 def run_option1(
     *,
-    target_set: str = "public",
+    target_set: str = "paper_test",
     targets: list[str] | None = None,
-    pool_set: str = "public_train",
+    pool_set: str = "train",
     acquisition: str = "random",
     n_steps: int = 5,
     n_predictions: int = 100,
@@ -137,12 +137,12 @@ def run_option1(
 
 def main():
     p = argparse.ArgumentParser(description="Option 1: AssayBench screen selection")
-    p.add_argument("--target-set", default="public",
-                   help="public|public_validation|/path/to.yaml (eval-target list)")
+    p.add_argument("--target-set", default="paper_test",
+                   help="paper_test|paper_validation|/path/to.yaml (eval-target list)")
     p.add_argument("--targets", default=None,
                    help="Comma-separated dataset_names to use as targets "
                         "(overrides --target-set).")
-    p.add_argument("--pool-set", default="public_train",
+    p.add_argument("--pool-set", default="train",
                    help="Pool of candidate training screens (default: the public "
                         "training fold).")
     p.add_argument("--acquisition", default="random", choices=["random", "llm"])

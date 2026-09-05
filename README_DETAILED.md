@@ -186,16 +186,20 @@ are curated 20-screen subsets of the validation and test folds. `--screen-set` r
 
 | Value | What |
 |---|---|
-| `public` (default) | the curated **20-screen test set** the paper reports |
-| `public_validation` | the curated 20-screen validation set (checkpoint selection) |
-| `public_train` | the full 1,349-screen training fold |
-| `public_val` | the full 218-screen validation fold |
-| `public_test` | the full 334-screen test fold |
+| `paper_test` (default) | the curated **20-screen test set** the paper reports |
+| `paper_validation` | the curated 20-screen validation set (checkpoint selection) |
+| `train` | the full 1,349-screen training fold |
+| `validation` | the full 218-screen validation fold |
+| `test` | the full 334-screen test fold |
 | `/path/to.yaml` | your own list |
 
-`public_test` is the whole fold `public` is drawn from, for a broader evaluation than the
+The former `public`, `public_validation`, `public_train`, `public_val`, and
+`public_test` names remain accepted as compatibility aliases for released
+checkpoints and older commands.
+
+`test` is the whole fold `paper_test` is drawn from, for a broader evaluation than the
 paper's. One caveat: the shipped screen-description embeddings cover the curated 20 of that
-fold, not all 334, so ASSAYFORMER on `public_test` needs an `OPENAI_API_KEY` — it raises and
+fold, not all 334, so ASSAYFORMER on `test` needs an `OPENAI_API_KEY` — it raises and
 says so rather than substituting a different vector. Every other method runs offline.
 
 `--screen <dataset_name,...>` overrides the set and runs exact screens.
@@ -289,7 +293,7 @@ Or point at one of the committed AssayBench configs in `configs/lm/`, which carr
 model id and sampling preset used for each row of the paper's table:
 
 ```bash
-uv run assayloop run --model null --acq llm_single --screen-set public \
+uv run assayloop run --model null --acq llm_single --screen-set paper_test \
     --lm-config configs/lm/collect-gemini-3.1-pro.yaml
 ```
 
@@ -310,7 +314,7 @@ is downloaded from us:
 ```bash
 uv run python -m assayloop.scripts.export_screen_dataset   # description, phenotype, hits, non-hits
 bash scripts/build_agent_sandbox.sh                        # bakes the export in at /data/screens.json
-uv run assayloop run --model agent_ranker --acq greedy --screen-set public --n-steps 10
+uv run assayloop run --model agent_ranker --acq greedy --screen-set paper_test --n-steps 10
 ```
 
 Requires [Apptainer](https://apptainer.org) and `ANTHROPIC_API_KEY`; the model checks for
@@ -381,22 +385,22 @@ individual runs:
 
 ```bash
 # --- Base LLMs (rows: GLM-5.1, Gemini-3.1-pro, GPT-5.6 Sol) ---
-uv run assayloop run --model null --acq llm_single --screen-set public \
+uv run assayloop run --model null --acq llm_single --screen-set paper_test \
     --lm-config configs/lm/collect-GLM-5.1.yaml       # swap in any configs/lm/collect-*.yaml
 
 # --- Classical / heuristic ---
-uv run assayloop run --model screen_knn --acq greedy --screen-set public --full-genome \
+uv run assayloop run --model screen_knn --acq greedy --screen-set paper_test --full-genome \
     --model-param prior_only=true                     # Prior hit baseline
-uv run assayloop run --model screen_knn --acq greedy --screen-set public --full-genome
-uv run assayloop run --model bpmf --acq greedy --screen-set public --full-genome
-uv run assayloop run --model biobo --acq bio_ucb --screen-set public --seed 0 --full-genome
-uv run assayloop run --model biobo --acq greedy  --screen-set public --seed 0 --full-genome
+uv run assayloop run --model screen_knn --acq greedy --screen-set paper_test --full-genome
+uv run assayloop run --model bpmf --acq greedy --screen-set paper_test --full-genome
+uv run assayloop run --model biobo --acq bio_ucb --screen-set paper_test --seed 0 --full-genome
+uv run assayloop run --model biobo --acq greedy  --screen-set paper_test --seed 0 --full-genome
 
 # --- Agent, tuned, meta-learning ---
-uv run assayloop run --model agent_ranker --acq greedy --screen-set public --n-steps 10
-uv run assayloop run --model llmnn --acq greedy --screen-set public --n-steps 10 \
+uv run assayloop run --model agent_ranker --acq greedy --screen-set paper_test --n-steps 10
+uv run assayloop run --model llmnn --acq greedy --screen-set paper_test --n-steps 10 \
     --model-param n_centers=3 --model-param embedding_source=depmap
-uv run assayloop run --model hypothesis_ranker --acq greedy --screen-set public --n-steps 10
+uv run assayloop run --model hypothesis_ranker --acq greedy --screen-set paper_test --n-steps 10
 
 # --- AssayFormer and AssayLoop: see the next section ---
 ```
@@ -441,8 +445,8 @@ call per round, a small transformer encoder scores every gene in one forward pas
 - The contextualized DESC output is scored against a **tied, learned gene-embedding table**:
   `scores = desc_out @ E^T + bias`.
 - Trained with MSE against `unmasked_relevance_scores` (continuous, for every gene — not
-  just hits), on `public_train`, checkpoint-selected on `public_validation`, evaluated on
-  `public`.
+  just hits), on `train`, checkpoint-selected on `paper_validation`, evaluated on
+  `paper_test`.
 
 The learned table is saved as `gene_embeddings.npy` for post-hoc study — it is what the
 embedding-drift (`src/assayloop/scripts/plot_embedding_drift.py`) and network-recovery
@@ -489,11 +493,11 @@ uv run assayloop warm-text-cache      # pre-populate for every screen set, once
 ### BPMF: the gene-embedding init
 
 The gene-embedding table is initialised from a Bayesian probabilistic matrix factorisation of
-the `public_train` screen × gene hit matrix — the same factorisation that backs the `bpmf`
+the `train` screen × gene hit matrix — the same factorisation that backs the `bpmf`
 baseline row. No checkpoint ships, so fit it once:
 
 ```bash
-uv run assayloop train-bpmf --target-set public_train --K 10
+uv run assayloop train-bpmf --target-set train --K 10
 ```
 
 The paper's settings are the defaults: `K=10`, 2000 Gibbs iterations, 1000 discarded as
@@ -509,7 +513,7 @@ point it somewhere or copy a fit there.
 ### Train, evaluate, analyze
 
 ```bash
-# Full training on public_train, selection on public_validation, then eval on public test.
+# Full training on train, selection on paper_validation, then evaluation on paper_test.
 uv run assayloop train-ranker
 
 # Common knobs.

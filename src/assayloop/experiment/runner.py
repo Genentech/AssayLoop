@@ -220,7 +220,7 @@ def make_acquisition(
 @dataclass
 class RunConfig:
     task: str = "option2"            # for now, only option2 is wired
-    screen_set: str = "public"       # "public" | "public_train" | ... | path-to-YAML
+    screen_set: str = "paper_test"   # "paper_test" | "train" | ... | path-to-YAML
     dataset_names: list[str] | None = None
     model: str = "knn"
     acq: str = "greedy"

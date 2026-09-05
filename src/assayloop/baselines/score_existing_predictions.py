@@ -79,7 +79,7 @@ def score_file(
     predictions_path: str | Path,
     *,
     out_path: str | Path = "output/baselines/scores.json",
-    screen_set: str = "public",
+    screen_set: str = "paper_test",
 ) -> dict[str, Any]:
     """Score a JSONL of predictions; write summary to ``out_path``."""
     in_path = Path(predictions_path)

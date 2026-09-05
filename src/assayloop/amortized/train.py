@@ -344,7 +344,7 @@ def _collect_onpolicy(
         tokenizer=tokenizer, desc_text_by_name=desc_text_by_name,
     )
     cfg = RunConfig(
-        screen_set="public_train", model="amortized_ranker", acq="greedy",
+        screen_set="train", model="amortized_ranker", acq="greedy",
         batch_size=batch_size, n_steps=n_steps, persist=False,
         metrics=["hits_auc"], parallel=1, max_shortfall_frac=1.0,
     )
@@ -417,8 +417,8 @@ def run_training(
     *,
     out_dir: str | Path | None = None,
     train_size: int | None = None,
-    train_screen_set: str = "public_train",
-    val_screen_set: str = "public_validation",
+    train_screen_set: str = "train",
+    val_screen_set: str = "paper_validation",
     val_size: int | None = None,
     epochs: int = 10,
     batch_size: int = 32,
@@ -522,8 +522,8 @@ def run_training(
     val_screens = _subsample(load_screens(target_set=val_screen_set), val_size, seed)
     log.info("  loaded %s: %d screens (%.1fs)", val_screen_set, len(val_screens), time.time() - _t)
     _t = time.time()
-    test_screens = load_screens(target_set="public")  # genes only, for vocab
-    log.info("  loaded public (vocab only): %d screens (%.1fs)", len(test_screens), time.time() - _t)
+    test_screens = load_screens(target_set="paper_test")  # genes only, for vocab
+    log.info("  loaded paper_test (vocab only): %d screens (%.1fs)", len(test_screens), time.time() - _t)
 
     # Vocabulary over the union so eval genes get (cold) slots.
     vocab = GeneVocab.build([train_screens, val_screens, test_screens])

@@ -17,11 +17,11 @@ emits the same pickled ``BPMFResult`` so the output is drop-in for
 Usage::
 
     # single config
-    uv run python -m assayloop.scripts.train_bpmf_gpu --target-set public_train \
+    uv run python -m assayloop.scripts.train_bpmf_gpu --target-set train \
         --K 10 --sigma-u 1 --sigma-v 1 --n-iter 2000 --burn-in 1000
 
     # sweep
-    uv run python -m assayloop.scripts.train_bpmf_gpu --target-set public_train \
+    uv run python -m assayloop.scripts.train_bpmf_gpu --target-set train \
         --K 8,10,16 --sigma-u 0.5,1,2 --sigma-v 0.5,1,2
 
     # validate against the current implementation
@@ -507,7 +507,7 @@ def _save_result(res: BPMFResult, out_dir: Path, cfg: dict) -> Path:
 def main(argv: list[str] | None = None) -> None:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--target-set", default="public_train")
+    ap.add_argument("--target-set", default="train")
     ap.add_argument("--K", default="10", help="Comma list of latent dims to sweep.")
     ap.add_argument("--sigma-u", default="1.0", help="Comma list of screen-prior stds.")
     ap.add_argument("--sigma-v", default="1.0", help="Comma list of gene-prior stds.")

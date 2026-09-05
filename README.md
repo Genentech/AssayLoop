@@ -6,6 +6,8 @@ Code for **"Biology-in-the-loop: Amortized Adaptive Hit Discovery in CRISPR Scre
 <!-- TODO: the Paper badge points at README_DETAILED.md until the arXiv ID exists.
      Repoint it at the arXiv abstract then, alongside the Citation BibTeX below. -->
 
+[![Try it yourself](https://img.shields.io/badge/Try_it_yourself!-Run_AssayFormer_in_your_browser-176b87?style=for-the-badge)](https://genentech.github.io/AssayLoop/try.html)
+
 ![The task: a screen is a library of genes, a phenotype and a hit set. Each round, a method
 sees the phenotype and everything it has already assayed, and chooses the next hundred
 genes.](docs/assets/figures/figure1.png?v=2d3c8d2f)
@@ -46,7 +48,7 @@ from assayloop.tasks import gene_universe, load_screens, make_task
 ckpt = snapshot_download("Genentech/assayformer")
 model = AmortizedRankerModel(checkpoint=ckpt, ckpt_file="model_last.pt")
 
-screens = load_screens(target_set="public")
+screens = load_screens(target_set="paper_test")
 universe = gene_universe(screens)          # the f2 pool the paper scores against
 screen = screens[0]
 
@@ -64,7 +66,7 @@ No API key is needed to run AssayFormer or to reproduce its numbers.
 Training your own:
 
 ```bash
-uv run assayloop train-bpmf --target-set public_train --K 10        # gene-embedding init
+uv run assayloop train-bpmf --target-set train --K 10               # gene-embedding init
 uv run assayloop train-ranker                                       # supervised
 uv run assayloop train-ranker-rl --init-checkpoint <ckpt-dir>       # + GRPO: EF 3.83 -> 4.83
 uv run assayloop eval-ranker --checkpoint <ckpt-dir> --ckpt-file model_last.pt
@@ -75,7 +77,7 @@ uv run assayloop eval-ranker --checkpoint <ckpt-dir> --ckpt-file model_last.pt
 Collect the LLM warm start, then hand off to the ranker:
 
 ```bash
-uv run assayloop run --model null --acq llm_single --screen-set public \
+uv run assayloop run --model null --acq llm_single --screen-set paper_test \
     --lm-config configs/lm/collect-gemini-3.1-pro.yaml
 
 uv run assayloop eval-ranker-handoff \
@@ -92,24 +94,28 @@ provider you set `ASSAYLOOP_LLM_PROVIDER` and that provider's key in `.env`.
 ```python
 from assayloop.tasks import load_screens
 
-load_screens(target_set="public")              # the paper's curated 20-screen test set
-load_screens(target_set="public_test")         # the full 334-screen test fold
+load_screens(target_set="paper_test")          # the paper's curated 20-screen test set
+load_screens(target_set="test")                # the full 334-screen test fold
 load_screens(dataset_names=["U_1733_merged"])  # exact screens
 ```
 
 | `--screen-set` | What |
 |---|---|
-| `public` (default) | the curated **20-screen test set** the paper reports |
-| `public_validation` | the curated 20-screen validation set (checkpoint selection) |
-| `public_train` | the full 1,349-screen training fold |
-| `public_val` | the full 218-screen validation fold |
-| `public_test` | the full 334-screen test fold |
+| `paper_test` (default) | the curated **20-screen test set** the paper reports |
+| `paper_validation` | the curated 20-screen validation set (checkpoint selection) |
+| `train` | the full 1,349-screen training fold |
+| `validation` | the full 218-screen validation fold |
+| `test` | the full 334-screen test fold |
 | `lopo-*-{train,test}` | the leave-one-phenotype-out splits |
 | `/path/to.yaml` | your own list |
 
+The former `public`, `public_validation`, `public_train`, `public_val`, and
+`public_test` names remain accepted as compatibility aliases for released
+checkpoints and older commands.
+
 ```bash
 # Same random baseline as the Quickstart, on the validation set instead of the test set.
-uv run assayloop run --model null --acq random --screen-set public_validation
+uv run assayloop run --model null --acq random --screen-set paper_validation
 ```
 
 ## Metrics
@@ -124,7 +130,7 @@ from assaybench import (adjusted_nauc, enrichment_factor, fraction_of_hits,
                         percent_essential, shortfall)
 from assayloop.tasks import gene_universe, load_screens
 
-screens = load_screens(target_set="public")
+screens = load_screens(target_set="paper_test")
 universe = gene_universe(screens)             # the f2 pool, 21,147 genes
 screen = screens[0]
 hits = [g for g, h in zip(screen.genes, screen.hits) if h]
@@ -165,7 +171,7 @@ class MyRanker(Model):
         return ModelPrediction(
             scores={g: float(g[:3] in hit_prefixes) for g in candidates})
 
-screens = load_screens(target_set="public")
+screens = load_screens(target_set="paper_test")
 task = make_task(screens[0], universe_genes=gene_universe(screens))   # the f2 pool
 run = SequentialLoop(task, MyRanker(), GreedyFromModel(),
                      metrics=[], batch_size=100).run(n_steps=10)

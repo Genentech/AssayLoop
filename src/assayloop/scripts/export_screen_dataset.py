@@ -13,7 +13,7 @@ Usage::
 
     uv run python -m assayloop.scripts.export_screen_dataset
     uv run python -m assayloop.scripts.export_screen_dataset \
-        --target-set public_train --output output/datasets/public_train_screens.json
+        --target-set train --output output/datasets/train_screens.json
 """
 from __future__ import annotations
 
@@ -23,14 +23,14 @@ from pathlib import Path
 
 from assayloop import config
 
-DEFAULT_OUT = config.OUTPUT_PATH / "datasets" / "public_train_screens.json"
+DEFAULT_OUT = config.OUTPUT_PATH / "datasets" / "train_screens.json"
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Export screen metadata for the agent sandbox")
     parser.add_argument(
-        "--target-set", default="public_train",
-        help="Screen set to export (default: public_train).",
+        "--target-set", default="train",
+        help="Screen set to export (default: train).",
     )
     parser.add_argument(
         "--output", default=str(DEFAULT_OUT),

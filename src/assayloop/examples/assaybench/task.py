@@ -95,7 +95,7 @@ class AssayBenchScreenSelectionTask(Task):
 
 def build_pool(
     *,
-    target_set: str = "public",
+    target_set: str = "paper_test",
     dataset_names: list[str] | None = None,
 ) -> list[ScreenRecord]:
     """Resolve the candidate pool of screens.

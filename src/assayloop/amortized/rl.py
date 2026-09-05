@@ -1026,9 +1026,9 @@ def run_rl_training(
     aux_hit_coef: float = 0.0,
     out_dir: str | Path | None = None,
     run_name: str | None = None,
-    train_screen_set: str = "public_train",
+    train_screen_set: str = "train",
     train_size: int | None = None,
-    eval_screen_set: str = "public_validation",
+    eval_screen_set: str = "paper_validation",
     eval_size: int | None = None,
     eval_screens: int = 30,
     train_eval_screens: int = 30,
@@ -1132,7 +1132,7 @@ def run_rl_training(
     universe_genes = None
     if full_genome:
         from ..tasks import gene_universe
-        universe_genes = gene_universe(load_screens(target_set="public"),
+        universe_genes = gene_universe(load_screens(target_set="paper_test"),
                                        min_screen_freq=2)
         log.info("full_genome: universe of %d genes (freq >= 2)", len(universe_genes))
 
@@ -1151,9 +1151,9 @@ def run_rl_training(
         # supervised training so eval/transfer genes have ids.
         vocab_screens = [train_screens, eval_screens_all]
         try:
-            vocab_screens.append(load_screens(target_set="public"))
+            vocab_screens.append(load_screens(target_set="paper_test"))
         except Exception as e:  # noqa: BLE001
-            log.warning("Could not load public test screens for vocab (%s).", e)
+            log.warning("Could not load paper test screens for vocab (%s).", e)
         vocab = GeneVocab.build(vocab_screens)
         if use_description and not is_text:
             text_dim = te.get_text_embedder(

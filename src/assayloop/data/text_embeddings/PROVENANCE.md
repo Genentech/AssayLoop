@@ -19,15 +19,16 @@ One entry per distinct screen description across the public screen sets:
 
 | Screen set | Screens |
 |---|---|
-| `public` | 20 |
-| `public_validation` | 20 |
-| `public_train` | 1349 |
-| `public_val` | 218 |
+| `paper_test` | 20 |
+| `paper_validation` | 20 |
+| `train` | 1349 |
+| `validation` | 218 |
 
 Distinct texts total fewer than the sum of the rows because the smaller
 evaluation sets are subsets of the training fold.
 
-Not covered: the other 314 screens of the biogrid test fold (`public_test`).
+Not covered: the other 314 screens of the biogrid test fold (`test`). The old
+`public*` names remain accepted as compatibility aliases.
 The paper reports on the curated 20, so those are what ships; evaluating
 ASSAYFORMER on the full test fold needs an `OPENAI_API_KEY`.
 

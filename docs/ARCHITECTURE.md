@@ -199,10 +199,11 @@ splits. The manifests themselves ship with assaybench, in
 is part of the benchmark definition, not of this repo's plumbing, and
 `load_manifest(name).summary()` states the split so two results are not
 silently computed on different subsets. `tasks/screen_sets.py` is the adapter
-from a manifest to loaded `ScreenRecord`s and keeps this repo's short names
-(`public`, `public_validation`, `public_train`, `public_val`), which every
-config and checkpoint here was written against. Override with `--screen-set
-public_validation`, `--screen-set lopo-drug-test` (any shipped manifest name),
+from a manifest to loaded `ScreenRecord`s and exposes the public names
+(`paper_test`, `paper_validation`, `train`, `validation`, `test`). The older
+`public*` names remain aliases for configs and checkpoints already written
+against them. Override with `--screen-set paper_validation`, `--screen-set
+lopo-drug-test` (any shipped manifest name),
 `--screen-set /path/to.yaml`, or explicit `--screen dataset_name,...`.
 
 `src/assayloop/scripts/select_default_public_screens.py` regenerates them into

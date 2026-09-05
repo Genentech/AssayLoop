@@ -39,7 +39,7 @@ def _average_precision(labels: np.ndarray, scores: np.ndarray) -> float:
 def context_value(
     *,
     checkpoint: str,
-    screen_set: str = "public",
+    screen_set: str = "paper_test",
     device: str = "auto",
     n_screens: int = 60,
     ctx_size: int = 50,

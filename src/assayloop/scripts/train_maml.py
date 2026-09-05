@@ -130,8 +130,8 @@ def main():
     ap.add_argument("--context-frac", type=float, default=0.25)
     ap.add_argument("--batch-size", type=int, default=32,
                     help="Screens per outer-loop update")
-    ap.add_argument("--train-screen-set", default="public_train")
-    ap.add_argument("--val-screen-set", default="public_validation")
+    ap.add_argument("--train-screen-set", default="train")
+    ap.add_argument("--val-screen-set", default="paper_validation")
     ap.add_argument("--text-backend", default="auto")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--device", default="auto")

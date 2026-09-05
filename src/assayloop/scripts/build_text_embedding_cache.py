@@ -55,15 +55,15 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(mess
 log = logging.getLogger("build_text_embedding_cache")
 
 # The screen sets whose descriptions ship pre-embedded: the paper's two curated
-# sets and the two whole folds behind them. ``public_test`` -- the full 334-screen
+# sets and the two whole folds behind them. ``test`` -- the full 334-screen
 # test fold -- is deliberately absent: the paper reports on the curated 20, and
 # the other 314 would have to be embedded fresh rather than re-keyed from the
 # research cache. Ask for it explicitly to add it, with a key set.
 PUBLIC_SCREEN_SETS = (
-    "public",
-    "public_validation",
-    "public_train",
-    "public_val",
+    "paper_test",
+    "paper_validation",
+    "train",
+    "validation",
 )
 
 # The key prefix the research cache was written under, before keys moved from

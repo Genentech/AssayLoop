@@ -3,9 +3,9 @@
 
 Usage:
     uv run python -m assayloop.scripts.train_bpmf
-    uv run python -m assayloop.scripts.train_bpmf --target-set public_train --K 10 --n-iter 2000
+    uv run python -m assayloop.scripts.train_bpmf --target-set train --K 10 --n-iter 2000
 
-``--target-set public_train`` (the 1,349-screen training fold) is what the paper's
+``--target-set train`` (the 1,349-screen training fold) is what the paper's
 K=10 factorisation is fit on.
 """
 
@@ -27,7 +27,7 @@ _OUTPUT_ROOT = config.OUTPUT_PATH / "bpmf"
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Train BPMF model via Gibbs sampling")
-    parser.add_argument("--target-set", default="public_train", help="Screen set to train on (default: public_train)")
+    parser.add_argument("--target-set", default="train", help="Screen set to train on (default: train)")
     parser.add_argument("--K", type=int, default=10, help="Latent dimension (default: 10)")
     parser.add_argument("--n-iter", type=int, default=2000, help="Total Gibbs iterations (default: 2000)")
     parser.add_argument("--burn-in", type=int, default=1000, help="Burn-in iterations to discard (default: 1000)")

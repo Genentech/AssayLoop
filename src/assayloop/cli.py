@@ -189,7 +189,7 @@ def _load_lm_config_or_exit(lm_config: Optional[str]):
 def run(
     model: str = typer.Option("knn", help="See make_model() in experiment/runner.py for the full list."),
     acq: str = typer.Option("greedy", help="random|greedy|ucb|bio_ucb|llm_single (open-vocab, AssayBench-style)|llm_single_blind (ablation: history shown without hit labels). The LLM->AssayFormer handoff is its own command, eval-ranker-handoff."),
-    screen_set: str = typer.Option("public", help="public|public_train|public_val|public_test|/path/to.yaml"),
+    screen_set: str = typer.Option("paper_test", help="paper_test|paper_validation|train|validation|test|/path/to.yaml"),
     screen: Optional[str] = typer.Option(None, help="Comma-sep dataset_names to run (overrides screen_set)"),
     batch_size: int = typer.Option(100),
     n_steps: Optional[int] = typer.Option(None, help="Cap on AL steps"),
@@ -229,7 +229,7 @@ def run(
     resume: bool = typer.Option(False, "--resume", help="Skip screens whose result.json already exists from a prior run."),
     full_genome: bool = typer.Option(False, "--full-genome", help="Expand the candidate pool to the shared gene universe. This is the default for open-vocabulary LLM acquisitions."),
     screen_library: bool = typer.Option(False, "--screen-library", help="Restrict candidates to each screen library, overriding the open-vocabulary LLM default."),
-    min_screen_freq: int = typer.Option(2, "--min-screen-freq", help="With the shared universe, keep only genes measured in at least this many screens. The default 2 is the paper's f2 universe (21,147 genes for --screen-set public); 0 keeps the plain union (22,174), which admits pseudogenes and per-library assembly artefacts."),
+    min_screen_freq: int = typer.Option(2, "--min-screen-freq", help="With the shared universe, keep only genes measured in at least this many screens. The default 2 is the paper's f2 universe (21,147 genes for --screen-set paper_test); 0 keeps the plain union (22,174), which admits pseudogenes and per-library assembly artefacts."),
     verbose: bool = typer.Option(True),
 ):
     """Run a single (model, acq) configuration across the resolved screens."""
@@ -315,7 +315,7 @@ def sweep(
     models: str = typer.Option("null,knn,rf", help="Comma-sep model names"),
     acqs: str = typer.Option("random,greedy,ucb", help="Comma-sep acquisition names"),
     seeds: str = typer.Option("0", help="Comma-sep RNG seeds"),
-    screen_set: str = typer.Option("public", help="public|public_train|public_val|public_test|/path/to.yaml"),
+    screen_set: str = typer.Option("paper_test", help="paper_test|paper_validation|train|validation|test|/path/to.yaml"),
     screen: Optional[str] = typer.Option(None),
     batch_size: int = typer.Option(100),
     n_steps: Optional[int] = typer.Option(None),
@@ -463,9 +463,9 @@ def _print_sweep_grid(rows):
 @app.command("collect-dataset")
 def collect_dataset(
     screen_set: str = typer.Option(
-        "public_train",
-        help="public|public_train|public_val|public_test|/path/to.yaml. "
-        "public_train = biogrid train fold (held out from the public test "
+        "train",
+        help="paper_test|paper_validation|train|validation|test|/path/to.yaml. "
+        "train = biogrid train fold (held out from the paper test "
         "set used for evaluation).",
     ),
     screen: Optional[str] = typer.Option(
@@ -660,7 +660,7 @@ def collect_dataset(
     manifest = {
         "out": str(out_path),
         "screen_set": screen_set,
-        "fold": "yearfold0=train" if screen_set == "public_train" else screen_set,
+        "fold": "yearfold0=train" if screen_set in {"train", "public_train"} else screen_set,
         "teacher": teacher_label,
         "lm_config": lm_config,
         "acq": acq,
@@ -874,6 +874,8 @@ def _eval_ranker_sweep(
 # ASSAYLOOP_SHARED_PATH/runs; override with --warm-start-eval-dir.
 _HANDOFF_RUNS_DIR = str(config.SHARED_PATH / "runs")
 _HANDOFF_PREFIX_BY_SET = {
+    "paper_test": "sweep-e0dd3203-",
+    "paper_validation": "sweep-ad6af08f-",
     "public": "sweep-e0dd3203-",
     "public_validation": "sweep-ad6af08f-",
 }
@@ -937,7 +939,7 @@ def train_ranker(
     out_dir: Optional[str] = typer.Option(None, "--out-dir", help="Artifact dir (default output/rankers/<run-name>)."),
     run_name: Optional[str] = typer.Option(None, "--run-name", help="Run name (wandb + artifact dir)."),
     train_screen_set: str = typer.Option(
-        "public_train",
+        "train",
         "--train-screen-set",
         help=(
             "Screen set used for training. Default is the full public biogrid "
@@ -946,11 +948,11 @@ def train_ranker(
     ),
     train_size: Optional[int] = typer.Option(None, "--train-size", help="Subsample N train screens (default: all)."),
     val_screen_set: str = typer.Option(
-        "public_validation",
+        "paper_validation",
         "--val-screen-set",
         help=(
             "Screen set used for checkpoint selection / in-training validation. "
-            "Default is the curated 20-screen validation set. Use public_val "
+            "Default is the curated 20-screen validation set. Use validation "
             "for the full public validation fold."
         ),
     ),
@@ -1084,12 +1086,12 @@ def train_ranker(
     seed: int = typer.Option(0),
     device: str = typer.Option("auto", help="auto|cpu|cuda."),
     no_eval: bool = typer.Option(False, "--no-eval", help="Skip the post-training AL evaluation sweep."),
-    eval_screen_set: str = typer.Option("public", "--eval-screen-set", help="Screen set for the auto-eval sweep."),
+    eval_screen_set: str = typer.Option("paper_test", "--eval-screen-set", help="Screen set for the auto-eval sweep."),
     eval_parallel: int = typer.Option(1, "--eval-parallel", help="Parallel screens in the eval sweep."),
 ):
-    """Train the amortized gene ranker on BioGRID public-train, select
-    checkpoints on the curated public validation set by default, then evaluate
-    in the AL loop on the public test set, persisting the result as a sweep.
+    """Train the amortized gene ranker on the BioGRID training fold, select
+    checkpoints on ``paper_validation`` by default, then evaluate in the AL
+    loop on ``paper_test``, persisting the result as a sweep.
     Validation metrics are logged to wandb.
     """
     from .amortized.train import run_training
@@ -1147,7 +1149,7 @@ def train_ranker(
 @app.command("warm-text-cache")
 def warm_text_cache(
     screen_sets: str = typer.Option(
-        "public_train,public_validation,public_val",
+        "train,paper_validation,validation",
         "--screen-sets",
         help="CSV of screen sets whose descriptions to embed into the on-disk cache. Defaults to every set train-ranker embeds (train + both validation folds). Missing sets are skipped.",
     ),
@@ -1224,13 +1226,13 @@ def train_ranker_rl(
     ),
     out_dir: Optional[str] = typer.Option(None, "--out-dir", help="Artifact dir (default output/rankers/<run-name>)."),
     run_name: Optional[str] = typer.Option(None, "--run-name", help="Run name (wandb + artifact dir)."),
-    train_screen_set: str = typer.Option("public_train", "--train-screen-set", help="Screens rolled out for RL."),
+    train_screen_set: str = typer.Option("train", "--train-screen-set", help="Screens rolled out for RL."),
     train_size: Optional[int] = typer.Option(None, "--train-size", help="Subsample N train screens (default: all)."),
-    eval_screen_set: str = typer.Option("public_validation", "--eval-screen-set", help="Held-out screens for the eval/early-stop metric."),
+    eval_screen_set: str = typer.Option("paper_validation", "--eval-screen-set", help="Held-out screens for the eval/early-stop metric."),
     eval_size: Optional[int] = typer.Option(None, "--eval-size", help="Subsample N eval screens (default: all)."),
     eval_screens: int = typer.Option(30, "--eval-screens", help="# held-out screens scored per eval round (0 = all)."),
     train_eval_screens: int = typer.Option(30, "--train-eval-screens", help="# train screens scored each eval round for the train-vs-test split (0 = all)."),
-    test_eval_set: Optional[str] = typer.Option(None, "--test-eval-set", help="If set (e.g. 'public'), also evaluate the policy on this held-out *test* set every eval round and record it (history 'eval_test', wandb 'eval_test/*'). Lets you track val->test generalization across the whole RL trajectory, not just at the best-val checkpoint. Off by default."),
+    test_eval_set: Optional[str] = typer.Option(None, "--test-eval-set", help="If set (e.g. 'paper_test'), also evaluate the policy on this held-out *test* set every eval round and record it (history 'eval_test', wandb 'eval_test/*'). Lets you track val->test generalization across the whole RL trajectory, not just at the best-val checkpoint. Off by default."),
     epochs: int = typer.Option(3, help="Passes over the train screens."),
     screens_per_step: int = typer.Option(1, "--screens-per-step", help="Screens accumulated per optimizer step."),
     group_size: int = typer.Option(8, "--group-size", help="GRPO rollouts per screen (>=2)."),
@@ -1425,9 +1427,9 @@ def train_ranker_rl(
               if summary.get("best_handoff_val_nvr_adj") is not None else ""))
 
     if not no_eval:
-        rprint("[cyan]Evaluating[/] RL ranker on 'public' (AL loop)...")
+        rprint("[cyan]Evaluating[/] RL ranker on 'paper_test' (AL loop)...")
         sweep = _eval_ranker_sweep(
-            checkpoint=summary["out_dir"], screen_set="public",
+            checkpoint=summary["out_dir"], screen_set="paper_test",
             batch_size=batch_size, n_steps=n_steps, parallel=eval_parallel,
             tag=summary["run_name"], seed=seed, device=device,
         )
@@ -1441,10 +1443,10 @@ def train_ranker_rl(
 def eval_ranker(
     checkpoint: str = typer.Option(..., "--checkpoint", help="Trained ranker dir (output/rankers/<name>)."),
     screen_set: str = typer.Option(
-        "public",
+        "paper_test",
         "--screen-set",
         help=(
-            "public|public_validation|public_val|public_test|public_train|all."
+            "paper_test|paper_validation|train|validation|test|/path/to.yaml."
         ),
     ),
     batch_size: int = typer.Option(100, help="AL batch size."),
@@ -1533,7 +1535,7 @@ def eval_ranker(
 @app.command("eval-ranker-handoff")
 def eval_ranker_handoff(
     checkpoint: str = typer.Option(..., "--checkpoint", help="Trained ranker dir (output/rankers/<name>)."),
-    screen_set: str = typer.Option("public", "--screen-set", help="public|public_validation|..."),
+    screen_set: str = typer.Option("paper_test", "--screen-set", help="paper_test|paper_validation|train|validation|test|/path/to.yaml"),
     n: int = typer.Option(
         -1, "--n",
         help="# GLM warm-start rounds for every screen (0..n_steps). "
@@ -1623,7 +1625,7 @@ def train_bpmf(
     Unknown options are forwarded verbatim to the underlying script, so the paper's
     factorisation (K=10, 2000 iterations, 1000 burn-in, thin 2) is::
 
-        assayloop train-bpmf --target-set public_train --K 10
+        assayloop train-bpmf --target-set train --K 10
 
     Run ``python -m assayloop.scripts.train_bpmf_gpu --help`` for the full option
     list; ``--K`` accepts a comma list on the GPU path so one call can sweep K.

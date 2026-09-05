@@ -20,7 +20,7 @@ class ScreenKNNModel(Model):
     def __init__(
         self,
         *,
-        training_set: str = "public_train",
+        training_set: str = "train",
         tau: float = 0.1,
         kappa: float = 100.0,
         filter_phenotype: bool = False,

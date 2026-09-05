@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<meta name="description" content="Rank the next genes in a CRISPR screen with the released AssayFormer checkpoint."/>
+<!-- Leave blank when this site is served by deployment/app.py. For GitHub
+     Pages, set this to the separately deployed HTTPS API origin. -->
+<meta name="assayloop-api-base" content=""/>
+<title>Try It — AssayLoop</title>
+<link rel="stylesheet" href="assets/css/site.css?v=d3b20dd5"/>
+</head>
+<body>
+<div id="site-header"></div>
+
+<main>
+  <div class="container-wide">
+    <p class="kicker">Released model</p>
+    <h1>Try AssayFormer</h1>
+    <p class="lede try-lede">
+      Describe a CRISPR screen, add the genes already tested, and rank the next batch with the
+      AssayFormer model.
+    </p>
+
+    <section class="try-grid" aria-label="AssayFormer interactive demo">
+      <form id="rank-form" class="demo-card try-form">
+        <input id="cleaned-phenotype" type="hidden" value=""/>
+        <input id="contrast-label" type="hidden" value=""/>
+        <div class="demo-card-head">
+          <div>
+            <span class="step-number">1</span>
+            <h2>Describe the screen</h2>
+          </div>
+          <label class="compact-field">Public example
+            <select id="example-select">
+              <option value="custom" disabled>Custom screen (embedding endpoint required)</option>
+            </select>
+          </label>
+        </div>
+        <div class="field-grid">
+          <label class="field field-span-2">Phenotype
+            <input id="phenotype" maxlength="500" required readonly
+              placeholder="e.g. increases reporter fluorescence"/>
+          </label>
+          <label class="field">Cell line
+            <input id="cell-line" maxlength="200" placeholder="e.g. K-562" readonly/>
+          </label>
+          <label class="field">Cell type
+            <input id="cell-type" maxlength="200" placeholder="e.g. myeloid leukemia" readonly/>
+          </label>
+          <label class="field">Perturbation
+            <select id="methodology" disabled>
+              <option value="">Not specified</option>
+              <option>Knockout</option>
+              <option>Inhibition</option>
+              <option>Activation</option>
+            </select>
+          </label>
+          <label class="field">Organism
+            <input id="organism" maxlength="100" value="Homo sapiens" readonly/>
+          </label>
+          <label class="field field-span-2">Condition
+            <input id="condition" maxlength="500" readonly
+              placeholder="e.g. under drug treatment (dose and duration)"/>
+          </label>
+          <label class="field field-span-2">Additional context <span>(optional)</span>
+            <textarea id="description" rows="3" maxlength="1500" readonly
+              placeholder="Assay readout, comparison groups, or other details"></textarea>
+          </label>
+        </div>
+
+        <div class="demo-section-head">
+          <span class="step-number">2</span>
+          <div>
+            <h2>Add observed results</h2>
+          </div>
+        </div>
+
+        <div class="observation-controls">
+          <label class="field">Values mean
+            <select id="value-mode">
+              <option value="binary">Hit / non-hit labels</option>
+              <option value="continuous">Continuous scores</option>
+              <option value="genes">Genes only (all non-hits)</option>
+            </select>
+          </label>
+          <label id="threshold-field" class="field is-hidden">Hit threshold
+            <input id="threshold" type="number" step="any" value="0"/>
+          </label>
+          <label id="direction-field" class="field is-hidden">A hit is
+            <select id="direction">
+              <option value="high">at or above threshold</option>
+              <option value="low">at or below threshold</option>
+            </select>
+          </label>
+        </div>
+        <label class="field">Observed genes
+          <textarea id="observations" class="data-paste" rows="10"
+            placeholder="gene&#9;hit&#10;TP53&#9;1&#10;BRCA1&#9;0"></textarea>
+        </label>
+        <p id="parse-summary" class="field-help">No observations pasted; cold-start ranking is supported.</p>
+
+        <div class="rank-options">
+          <label class="field compact-field">Next batch size
+            <input id="batch-size" type="number" min="1" max="500" value="100"/>
+          </label>
+          <label class="check-field">
+            <input id="exclude-essential" type="checkbox"/>
+            Exclude DepMap common-essential genes
+          </label>
+        </div>
+
+        <button id="rank-button" class="primary-button" type="submit">Rank the next batch</button>
+        <p id="form-error" class="form-error" role="alert"></p>
+      </form>
+
+      <section class="demo-card results-card" aria-live="polite">
+        <div class="demo-card-head results-head">
+          <div>
+            <span class="step-number">3</span>
+            <h2>Predicted next genes</h2>
+          </div>
+          <button id="download-button" class="secondary-button" type="button" disabled>Download CSV</button>
+        </div>
+        <div class="results-scroll">
+          <table class="try-results">
+            <thead>
+              <tr>
+                <th>Rank</th><th>Gene</th><th>Acquisition score</th><th>Batch inclusion</th>
+                <th>Known result</th><th>Hits / public screens</th><th>Essential</th>
+                <th>Reactome pathway</th><th>CORUM complex</th>
+              </tr>
+            </thead>
+            <tbody id="results-body">
+              <tr><td colspan="9" class="empty-results">Submit a screen to generate a ranking.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p id="results-summary" class="field-help results-summary">
+          No ranking yet. Choose a public example and click <strong>Rank the next batch</strong>.
+        </p>
+        <p class="field-help results-method-help">
+          Results are ordered by AssayFormer's acquisition score. The batch-inclusion percentage
+          estimates how often a gene enters the next batch under the stochastic Gumbel-top-k
+          policy; it is not a probability that the gene is a hit.
+        </p>
+      </section>
+    </section>
+
+    <div class="callout try-method-note">
+      <strong>What is running?</strong> AssayFormer ranks the released 21,147-gene evaluation
+      universe, conditioning on the assay description and the hit/non-hit feedback above. Observed
+      genes are removed from the candidate set. Symbols outside the checkpoint vocabulary are
+      reported and ignored rather than mapped to an unknown-gene embedding. The public examples
+      run locally in your browser using the ONNX version of the paper checkpoint.
+      <p class="try-example-provenance">
+        All five examples are public BioGRID ORCS screens distributed through AssayBench. Each
+        preloads two completed AssayFormer batches as feedback.
+        <span id="example-source">Loading example source…</span>
+      </p>
+    </div>
+
+    <div class="callout note try-notice">
+      <strong>To run your own screen.</strong>
+      <p id="description-mode">
+        Public examples use released text embeddings and run in your browser. The first ranking
+        downloads the 20 MB model; configure an embedding endpoint to enter a different screen.
+      </p>
+      <p>
+        Submitted descriptions and observations are not retained by this application, although
+        the hosting platform may have its own logging policy.
+      </p>
+    </div>
+  </div>
+</main>
+
+<div id="tour-scrim" class="try-tour-scrim" hidden></div>
+<aside id="tour-popover" class="try-tour-popover" role="dialog" aria-modal="true"
+  aria-labelledby="tour-title" aria-describedby="tour-copy" tabindex="-1" hidden>
+  <span id="tour-arrow" class="try-tour-arrow" aria-hidden="true"></span>
+  <button id="tour-close" class="try-tour-close" type="button">Skip</button>
+  <p id="tour-progress" class="try-tour-progress"></p>
+  <h2 id="tour-title"></h2>
+  <p id="tour-copy"></p>
+  <div class="try-tour-actions">
+    <button id="tour-back" class="secondary-button" type="button">Back</button>
+    <button id="tour-next" class="primary-button" type="button">Next</button>
+  </div>
+</aside>
+
+<div id="site-footer"></div>
+<script src="assets/js/site.js?v=d2a4f63f" data-build="22b2856f"></script>
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.29.0/dist/ort.min.js"
+  integrity="sha384-aNlzKRuz+c12Ba+TQPEE411gIYFoYR0OY2GQrUwB64S3Sn32ZBp3OmhsC3YTW5qR"
+  crossorigin="anonymous"></script>
+<script src="assets/js/assayformer-browser.js?v=8c31069d"></script>
+<script src="assets/js/try.js?v=44ef91dc"></script>
+</body>
+</html>

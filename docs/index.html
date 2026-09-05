@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>AssayLoop: Amortized Adaptive Hit Discovery in CRISPR Screens</title>
 <meta name="description" content="AssayLoop combines language-model biological priors with an amortized acquisition policy for adaptive hit discovery, reaching 5.67-fold enrichment and recovering 27.7% of hits at approximately 5% of the candidate library."/>
-<link rel="stylesheet" href="assets/css/site.css?v=4b58e340"/>
+<link rel="stylesheet" href="assets/css/site.css?v=d3b20dd5"/>
 <script src="https://cdn.plot.ly/plotly-2.32.0.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -36,14 +36,20 @@
       <a class="badge alt-3" href="cite.html"><span>📚</span> Citation</a>
     </div>
 
-    <div class="callout">
-      <strong>TL;DR.</strong> We construct <strong>AssayBench-Loop</strong>, a large-scale benchmark
-      for adaptive hit discovery comprising over one thousand CRISPR screens. We equip
-      AssayBench-Loop with dedicated metrics that account for hit-rate heterogeneity and incomplete
-      ground truth data. We then train <strong>AssayFormer</strong>, a transformer-based amortized
-      acquisition policy that excels at in-context learning and generalizes across phenotypes. We
-      combine AssayFormer with an LLM handoff strategy, leading to <strong>AssayLoop</strong>,
-      achieving state-of-the-art performance on adaptive hit discovery.
+    <div class="landing-intro-row">
+      <div class="callout">
+        <strong>TL;DR.</strong> We construct <strong>AssayBench-Loop</strong>, a large-scale benchmark
+        for adaptive hit discovery comprising over one thousand CRISPR screens. We equip
+        AssayBench-Loop with dedicated metrics that account for hit-rate heterogeneity and incomplete
+        ground truth data. We then train <strong>AssayFormer</strong>, a transformer-based amortized
+        acquisition policy that excels at in-context learning and generalizes across phenotypes. We
+        combine AssayFormer with an LLM handoff strategy, leading to <strong>AssayLoop</strong>,
+        achieving state-of-the-art performance on adaptive hit discovery.
+      </div>
+      <a class="landing-try-button" href="try.html">
+        <span class="landing-try-label">Try it yourself!</span>
+        <span class="landing-try-note">Run the model in-browser <span aria-hidden="true">→</span></span>
+      </a>
     </div>
 
     <!-- Drawn by assets/js/hero.js from the same recovery_mean.json the explorer
@@ -265,8 +271,8 @@ assayloop run --screen-set public --model assayformer</pre>
 </main>
 
 <div id="site-footer"></div>
-<script src="assets/js/site.js?v=e7f8b5b1" data-build="0074cd0d"></script>
-<script src="assets/js/index.js?v=a85cb0ba"></script>
+<script src="assets/js/site.js?v=d2a4f63f" data-build="22b2856f"></script>
+<script src="assets/js/index.js?v=6eac7e27"></script>
 <script src="assets/js/hero.js?v=36f6a8b3"></script>
 </body>
 </html>

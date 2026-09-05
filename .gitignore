@@ -33,11 +33,15 @@ src/assayloop/data/gene_sets/ReactomePathways*.txt
 
 reactome.graphdb.tgz
 
+# Try It deployment runtime cache. The PyTorch checkpoint downloaded from
+# Genentech/assayformer and temporary ONNX exports stay here. The verified,
+# public s19 browser graph is intentionally published under docs/assets/model/.
+# Authentication tokens are never checked into this repository.
+deployment/.model-cache/
+
 
 # Editor noise
 .vscode/
 .idea/
 *.swp
-
-
 

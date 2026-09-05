@@ -54,6 +54,19 @@ dependencies = [
 torch = ["torch>=2.3"]
 # Deprecated alias for the same extra.
 mlp = ["torch>=2.3"]
+# Small web service used by the public Try It page. Torch remains a separate
+# extra so ordinary installs do not acquire the 500 MB+ runtime.
+demo = [
+    "fastapi>=0.110",
+    "huggingface-hub>=0.30",
+    "uvicorn[standard]>=0.29",
+]
+# Export/verification dependencies for deployment/export_onnx.py. These are
+# build-time tools only; browser inference uses ONNX Runtime Web.
+onnx = [
+    "onnx>=1.17,<2",
+    "onnxruntime>=1.20,<2",
+]
 
 [project.scripts]
 assayloop = "assayloop.cli:app"

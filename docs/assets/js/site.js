@@ -14,6 +14,7 @@
     { href: "diversity.html", label: "Diversity", match: ["diversity.html"] },
     { href: "umap.html", label: "Gene embeddings", match: ["umap.html"] },
     { href: "analysis.html", label: "Analysis", match: ["analysis.html"] },
+    { href: "try.html", label: "Try It", match: ["try.html"] },
     { href: "cite.html", label: "Citation", match: ["cite.html"] },
   ];
 

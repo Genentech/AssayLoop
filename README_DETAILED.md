@@ -534,9 +534,10 @@ model actually using the AL context, or is it doing static retrieval?* —
 measures the marginal value of each additional observed round. `--no-ablate-context` /
 `--no-context-value` skip them if you only want the AL sweep.
 
-Training and validation metrics stream to Weights & Biases. `--wandb-entity` defaults to
-your account default (or `$WANDB_ENTITY`); `--wandb-mode offline` or `disabled` skips the
-network entirely. Note that a failed `wandb.init` is logged as a warning and training
+Training and validation metrics can stream to Weights & Biases when you explicitly pass
+`--wandb-mode online`. The safe default is `disabled`; `offline` records locally without
+using the network. `--wandb-entity` defaults to your account default (or `$WANDB_ENTITY`).
+Note that a failed `wandb.init` is logged as a warning and training
 continues unlogged, so set the entity deliberately if you care about the record.
 
 ### RL fine-tuning
@@ -683,6 +684,10 @@ Tests: `uv run pytest tests/`.
 
 MIT — see [LICENSE](LICENSE). Copyright (c) 2026 Genentech, Inc.
 
+Third-party data and data-derived annotations are not covered by the MIT License.
+See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and the applicable files in
+[LICENSES/](LICENSES/).
+
 The companion [`assaybench`](https://pypi.org/project/assaybench/) package (screen corpus
 loader and the shared EF / nAUC / shortfall / %essential metrics) is MIT under the same
 copyright.
@@ -701,7 +706,7 @@ partial or substituted input.
 | **MSigDB C5 GO:BP / C2 CP** (fetched) | pathway diversity, sunburst figure | Broad terms. C2 CP is **not** redistributable as a single file — it mixes KEGG legacy and BioCarta sets held under qualified permission with CC BY-SA 4.0 KEGG_MEDICUS sets, which is why you download it yourself. |
 | **Reactome** pathway hierarchy + human interactors (fetched) | pathway hierarchy, co-pathway counts | CC BY 4.0. `reactome_two_level.json` is a small derived hierarchy and is committed. |
 | **STRING v11.5, CORUM 4.1, SIGNOR 3.0** (fetched) | [network recovery, Figure 9](#interaction-ground-truth) | All three CC BY 4.0 at these pinned versions. |
-| **DepMap** common-essential genes | %essential | Bundled with `assaybench`; CC BY 4.0, Broad Institute. |
+| **DepMap Public 26Q1** common-essential genes | %essential; essentiality coloring in `docs/assets/data/gene_umap.json` | The current DepMap portal terms apply; do not describe this release as CC BY 4.0. AssayBench neither packages nor downloads the CSV: users obtain it from DepMap and provide its local path. The UMAP JSON rehosts derived essentiality annotations, which remain under the DepMap terms reproduced in [`LICENSES/DEPMAP_TERMS.md`](LICENSES/DEPMAP_TERMS.md). |
 | **BioGRID ORCS** screens | the screen corpus itself | Loaded from the `Genentech/assaybench` Hugging Face dataset; see that dataset card. |
 | **PRESAGE** gene embeddings (fetched, 3.4 GB) | `knn`, `rf`, `biobo`, `llmnn`, Vendi diversity | See the PRESAGE release for its terms; nothing is redistributed here. |
 | **Screen-description embeddings** (`src/assayloop/data/text_embeddings/`, committed) | the DESC token | Derived from public screen descriptions via OpenAI `text-embedding-3-small`; provenance in that directory's `PROVENANCE.md`. |

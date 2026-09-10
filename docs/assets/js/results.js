@@ -13,7 +13,7 @@
     { key: "display", label: "Method", type: "text", align: "left",
       title: "Method name as it appears in the paper's table." },
     { key: "ef", label: "EF", digits: 2, arrow: "↑",
-      title: "Hits found divided by the number expected from random selection, using the effective budget of in-library and invalid acquisitions." },
+      title: "Hits found divided by the number expected from random selection, using the effective budget of in-library, hallucinated, and unfilled acquisitions." },
     { key: "nauc", label: "nAUC (%)", digits: 1, scale: 100, arrow: "↑",
       title: "Area under the cumulative-hits curve, normalized by a perfect hits-first oracle over the same effective budget." },
     { key: "frac", label: "FH (%)", digits: 1, scale: 100, arrow: "↑",

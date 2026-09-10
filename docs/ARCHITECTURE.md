@@ -29,15 +29,20 @@ than a uniform-random pick was this run?"
 ```
 hits_auc_vs_random = hits_auc / hits_auc_random
 hits_auc_random    = x² / 2                          where x = frac_acquired
-n_hits_vs_random   = n_hits   / n_hits_random
-n_hits_random      = x · total_hits
+n_eff              = N_L + N̄_G + N_miss
+h_rand             = total_hits / library_size
+n_hits_vs_random   = n_hits / (n_eff · h_rand)
 ```
 
 Random acquisition has expected curve `y(x) = x`, so its expected AUC up to
 `x = frac_acquired` is `x²/2`. The ratio is **1.0 = no better than random,
 >1.0 = above random, <1.0 = below random**. The best achievable ratio (perfect
 ordering at small `x`) is roughly `L/H`. It has the most intuitive units — a number
-of "× times better" — which is why it is the paper's EF column.
+of "× times better" — which is why it is the paper's EF column. In the endpoint
+EF, `N_L` counts in-library acquisitions, `N̄_G` counts hallucinated acquisitions,
+and `N_miss` counts unfilled acquisition slots. Valid genes outside the screen
+library are forgiven. For nAUC, unfilled slots do not advance `x`; an
+under-supplying policy ends its curve earlier.
 
 **Secondary: `hits_auc_normalized`.** "What fraction of the *best possible* ordering
 did we attain?"

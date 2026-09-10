@@ -471,7 +471,7 @@ def run_training(
     # None => wandb uses the account default (or $WANDB_ENTITY).
     wandb_entity: str | None = None,
     wandb_project: str = "assayloop-amortized-ranker",
-    wandb_mode: str = "online",
+    wandb_mode: str = "disabled",
     wandb_group: str | None = None,
     wandb_tags: list[str] | None = None,
     reuse_wandb: bool = False,

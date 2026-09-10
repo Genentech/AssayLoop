@@ -112,7 +112,7 @@ FIGURES = [
             "phenotype and whatever it has already assayed, and must choose the next hundred "
             "genes. Ten rounds, then the score."),
         section="Figure 1 &middot; Introduction",
-        paper_pdf="assaybench-loop-figure1-v15.pdf",
+        paper_pdf="assaybench-loop-figure1-v19.pdf",
         note="Hand-drawn schematic. No script generates it.",
     ),
     Figure(
@@ -123,7 +123,7 @@ FIGURES = [
             "hit-rich and hit-sparse screens, recovery trajectories, and the complementary "
             "diagnostics reported in the paper."),
         section="Supplementary Figure 6 &middot; Metrics",
-        paper_pdf="assayloop-ef-metrics-v14.pdf",
+        paper_pdf="assayloop-ef-metrics-v15.pdf",
         note="Hand-drawn schematic. No script generates it. "
              "The metric itself is <code>assaybench.benchmark.sequential."
              "enrichment_factor_from_value</code>.",
@@ -169,7 +169,7 @@ FIGURES = [
         module="docs.plot_pathway_sunburst_release",
         args=["--output-stem", str(ANALYSIS / "pathway_sunburst")],
         stem="pathway_sunburst",
-        needs="CMU Serif (on Converge, load the <code>texlive</code> module)",
+        needs="CMU Serif (install locally or pass <code>--font-path</code>)",
     ),
     Figure(
         key="llm_pathway_heatmap",

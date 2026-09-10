@@ -325,12 +325,13 @@ _DISPLAY = {
 
 
 def _load_essentials():
-    """DepMap common essentials, from the copy bundled with assaybench.
+    """DepMap common essentials, loaded and verified by assaybench.
 
     This used to read a CSV at the repo root and return an empty set when the
     file was absent. An empty set does not fail: it makes the non-essential
     columns below silently identical to the plain ones, which is a wrong table
-    rather than a missing one. The packaged loader raises instead.
+    rather than a missing one. The AssayBench loader raises with manual setup
+    instructions if it cannot find or verify the user-supplied file.
     """
     return set(load_common_essentials())
 
@@ -896,8 +897,9 @@ def _write_json(path: Path, layout, results, universe, screens, *,
         "ep_retention_floor": RETENTION,
         "latex_table": tex_path.name,
         "metric_notes": {
-            "ef": "Enrichment factor: hit rate relative to random, "
-                  "domain-adjusted. Computed from the `n_hits_vs_random` "
+            "ef": "Enrichment factor: hits found divided by the random expectation "
+                  "under the effective budget (in-library + hallucinated + unfilled). "
+                  "Computed from the `n_hits_vs_random` "
                   "counts in each result.json, which is the older name for "
                   "the same quantity.",
             "nauc": "Domain-adjusted normalized AUC, fraction in [0, 1].",

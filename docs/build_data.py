@@ -176,8 +176,8 @@ def _strip_internals(payload: dict) -> None:
     """
     notes = payload.get("metric_notes", {})
     if "ef" in notes:
-        notes["ef"] = ("Enrichment factor: hit rate relative to random, "
-                       "domain-adjusted.")
+        notes["ef"] = ("Enrichment factor: hits found divided by the random expectation "
+                       "under the effective budget (in-library + hallucinated + unfilled).")
     for row in payload["rows"]:
         row.pop("label", None)
 

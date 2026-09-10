@@ -16,7 +16,7 @@
    "title":"The task, end to end.",
    "caption":"A screen is a library of genes, a phenotype, and a hit set. A method sees the phenotype and whatever it has already assayed, and must choose the next hundred genes. Ten rounds, then the score.",
    "section":"Figure 1 &middot; Introduction",
-   "image":"assets/figures/figure1.png?v=2d3c8d2f",
+   "image":"assets/figures/figure1.png?v=bb2ba228",
    "pdf":"assets/figures/figure1.pdf"
   },
   {
@@ -24,7 +24,7 @@
    "title":"Metrics used in AssayBench-Loop.",
    "caption":"Adjusted EF and nAUC, effective-budget terms, a worked comparison across hit-rich and hit-sparse screens, recovery trajectories, and the complementary diagnostics reported in the paper.",
    "section":"Supplementary Figure 6 &middot; Metrics",
-   "image":"assets/figures/ef_metrics.png?v=a536792e",
+   "image":"assets/figures/ef_metrics.png?v=9daf96fb",
    "pdf":"assets/figures/ef_metrics.pdf"
   },
   {

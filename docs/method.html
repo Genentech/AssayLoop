@@ -70,21 +70,24 @@
       of acquired genes over the full trajectory present in the screen library,
       <em>N<sub>G</sub></em> = |<em>G<sub>T</sub></em> &cap; <em>G</em>| for the number of valid
       acquired genes, <em>N&#x0304;<sub>G</sub></em> = |<em>G<sub>T</sub></em> &setminus;
-      <em>G</em>| for the number of acquired genes that do not represent valid genes (for example,
-      hallucinated genes or failure to use all <em>b</em> acquisition slots), and
+      <em>G</em>| for the number of hallucinated acquired genes that do not represent valid genes,
+      <em>N<sub>miss</sub></em> for the total number of unfilled acquisition slots over the
+      <em>T</em> rounds, and
       <em>h</em><sub>rand</sub> = |<em>H</em>|/|<em>L</em>| for the random hit rate. We define the
       hit enrichment factor as
     </p>
     <p class="equation">
       EF = |<em>G<sub>T</sub></em> &cap; <em>H</em>| &frasl;
-      &#8202;[ (<em>N<sub>L</sub></em> + <em>N&#x0304;<sub>G</sub></em>) &middot;
+      &#8202;[ (<em>N<sub>L</sub></em> + <em>N&#x0304;<sub>G</sub></em> +
+      <em>N<sub>miss</sub></em>) &middot;
       <em>h</em><sub>rand</sub> ]
     </p>
     <p>
       This formula differs from the classical enrichment factor in the number of acquired genes
       used for the normalization. By normalizing with (<em>N<sub>L</sub></em> +
-      <em>N&#x0304;<sub>G</sub></em>), we do not penalize acquisition of real genes that are not part
-      of the screen library, but do penalize the acquisition of hallucinated genes.
+      <em>N&#x0304;<sub>G</sub></em> + <em>N<sub>miss</sub></em>), we do not penalize acquisition of
+      real genes that are not part of the screen library, but do penalize hallucinated genes and
+      unfilled acquisition slots.
     </p>
 
     <h3 id="nauc">Normalized area under the cumulative-hits curve (nAUC)</h3>
@@ -96,7 +99,10 @@
       <em>N<sub>L,t</sub></em> and <em>N&#x0304;<sub>G,t</sub></em> the cumulative numbers of
       in-library and invalid acquired genes in <em>G<sub>t</sub></em>, respectively, and
       <em>N<sub>H,t</sub></em> = |<em>G<sub>t</sub></em> &cap; <em>H</em>| the number of hits in
-      <em>G<sub>t</sub></em>. The cumulative-hits curve is composed of points with coordinates
+      <em>G<sub>t</sub></em>. Unlike EF, unfilled acquisition slots do not advance
+      <em>x<sub>t</sub></em>; an under-supplying policy ends its curve at a smaller value instead
+      of being carried flat to the full budget. The cumulative-hits curve is composed of points
+      with coordinates
     </p>
     <p class="equation">
       (<em>x<sub>t</sub></em>, <em>y<sub>t</sub></em>) =
@@ -245,7 +251,7 @@
 </main>
 
 <div id="site-footer"></div>
-<script src="assets/js/site.js?v=d2a4f63f" data-build="22b2856f"></script>
+<script src="assets/js/site.js?v=d2a4f63f" data-build="4bc6f836"></script>
 <script src="assets/js/figure-strip.js?v=2438d889"></script>
 <script src="assets/js/method.js?v=6dffd10b"></script>
 </body>

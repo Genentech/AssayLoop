@@ -1,5 +1,12 @@
 # Environment and secrets
 .env
+.env.*
+!.env.example
+*.key
+*.p12
+*.pem
+*.pfx
+credentials.json
 
 # Python build / cache
 __pycache__/
@@ -44,4 +51,3 @@ deployment/.model-cache/
 .vscode/
 .idea/
 *.swp
-

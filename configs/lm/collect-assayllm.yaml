@@ -1,0 +1,31 @@
+# AssayLLM prediction-collection settings reported in paper section S4.3.
+# The checkpoint is not distributed in this repository; provide a local model
+# server explicitly before using this configuration.
+
+defaults:
+  - collect-predictions
+
+model_name: "assayllm"
+
+lm:
+  provider: "local"
+  model: "assayllm"
+  max_tokens: 32768
+  temperature: 1.0
+  top_p: 0.95
+  top_k: 20
+  min_p: 0.0
+  presence_penalty: 0.0
+  repetition_penalty: 1.0
+  api_base: "http://localhost:8000/v1"
+  api_key: "token-abc123"
+  chat_template_kwargs:
+    enable_thinking: true
+
+collection:
+  n_runs: 5
+  collect_train: true
+  collect_val: true
+  collect_test: true
+  save_frequency: 5
+  num_workers: 8

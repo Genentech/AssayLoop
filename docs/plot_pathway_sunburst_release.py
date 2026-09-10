@@ -15,12 +15,10 @@ two of the 20 test screens), whose published EP-B / EP-S / EP-D values are
 21.7 / 56.4 / 81.6. Unlike the table's single realised Random sweep, this
 reference is the expectation across repeated uniform draws.
 
-On Converge, load Matplotlib and TeX Live so the exact CMU Serif OpenType font
-is available::
+Install the CMU Serif OpenType font locally, or pass its path explicitly::
 
-    module load matplotlib/3.9.2-gfbf-2024a-Python-3.12.3
-    module load texlive/20240312-GCC-13.3.0-Python-3.12.3-Boost-1.91.0
-    MPLCONFIGDIR=/tmp/assayloop-mpl python docs/plot_pathway_sunburst_release.py
+    MPLCONFIGDIR=/tmp/assayloop-mpl python docs/plot_pathway_sunburst_release.py \
+        --font-path /path/to/cmunrm.otf
 
 The default outputs are the one-row website figure
 ``assets/figures/pathway_sunburst.{pdf,png,svg}`` and the two-row paper figure
@@ -136,8 +134,7 @@ def _cmu_serif(font_path: Path | None) -> str:
             ))
         except ValueError as exc:
             raise SystemExit(
-                "CMU Serif was not found. On Converge, load the texlive module "
-                "shown in this script's docstring, or pass --font-path."
+                "CMU Serif was not found. Install it locally or pass --font-path."
             ) from exc
     if not font_path.is_file():
         raise SystemExit(f"CMU Serif font does not exist: {font_path}")

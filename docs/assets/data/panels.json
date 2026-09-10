@@ -1,13 +1,13 @@
 {
   "figures": {
     "figure1": {
-      "image": "assets/figures/figure1.png?v=2d3c8d2f",
+      "image": "assets/figures/figure1.png?v=bb2ba228",
       "pdf": "assets/figures/figure1.pdf",
       "width": 3132,
       "height": 1119
     },
     "ef_metrics": {
-      "image": "assets/figures/ef_metrics.png",
+      "image": "assets/figures/ef_metrics.png?v=9daf96fb",
       "pdf": "assets/figures/ef_metrics.pdf",
       "width": 2221,
       "height": 1385

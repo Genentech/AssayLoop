@@ -10,7 +10,7 @@ Code for **"Biology-in-the-loop: Amortized Adaptive Hit Discovery in CRISPR Scre
 
 ![The task: a screen is a library of genes, a phenotype and a hit set. Each round, a method
 sees the phenotype and everything it has already assayed, and chooses the next hundred
-genes.](docs/assets/figures/figure1.png?v=2d3c8d2f)
+genes.](docs/assets/figures/figure1.png?v=bb2ba228)
 
 A CRISPR screen has ~20,000 candidate genes and a budget for testing a few hundred at a
 time. AssayLoop chooses which genes to test next, round after round, so hits show up early.
@@ -195,6 +195,10 @@ To reach your method from the CLI, add a branch to `make_model` in
 | `bash scripts/fetch_gene_sets.sh` | MSigDB | `bio_ucb`, pathway metrics, the sunburst figure |
 | `bash scripts/fetch_ground_truth.sh` | STRING / CORUM / SIGNOR | network-recovery analysis |
 
+The interactive UMAP includes DepMap Public 26Q1 common-essential annotations.
+They are not covered by this repository's MIT License; see the
+[third-party notices](THIRD_PARTY_NOTICES.md) and the reproduced
+[DepMap terms](LICENSES/DEPMAP_TERMS.md).
 
 ## Reproducing the paper's table
 

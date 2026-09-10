@@ -38,11 +38,12 @@ ANALYSIS_DIR = config.OUTPUT_PATH / "analysis"
 
 
 def _load_essentials():
-    """DepMap common essentials, from the copy bundled with assaybench.
+    """DepMap common essentials, loaded and verified by assaybench.
 
     Previously read a CSV at the repo root and warned-then-continued when it
     was missing, which exported a ``depmap_common_essential`` column that was
-    all-false rather than absent. The packaged loader raises.
+    all-false rather than absent. The AssayBench loader raises with manual
+    setup instructions if it cannot find or verify the user-supplied file.
     """
     return {g.upper() for g in load_common_essentials()}
 

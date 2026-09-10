@@ -122,11 +122,10 @@ PDF/SVG/PNG into `assets/figures/`, and writes `assets/data/figures.json`.
 
 The pathway sunburst can also be rebuilt by itself from the two release JSON
 artifacts; it does not require the original sweep directories or a Reactome
-download. On Converge, the exact CMU Serif build is:
+download. Install CMU Serif locally (or pass its OpenType file with
+`--font-path`) and run:
 
 ```bash
-module load matplotlib/3.9.2-gfbf-2024a-Python-3.12.3
-module load texlive/20240312-GCC-13.3.0-Python-3.12.3-Boost-1.91.0
 MPLCONFIGDIR=/tmp/assayloop-mpl python docs/plot_pathway_sunburst_release.py
 ```
 

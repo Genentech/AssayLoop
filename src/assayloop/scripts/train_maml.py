@@ -136,7 +136,7 @@ def main():
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--device", default="auto")
     ap.add_argument("--wandb-project", default="assayloop-amortized-ranker")
-    ap.add_argument("--wandb-mode", default="online")
+    ap.add_argument("--wandb-mode", default="disabled")
     ap.add_argument("--wandb-tags", default="maml")
     args = ap.parse_args()
 

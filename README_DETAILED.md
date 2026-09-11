@@ -7,6 +7,7 @@ place that says which checkpoint backs which table row, what raises when a downl
 missing, and what every environment variable does.
 
 Code for **"Biology-in-the-loop: Amortized Adaptive Hit Discovery in CRISPR Screens."**
+**[Paper on arXiv](https://arxiv.org/abs/2609.11877)**
 
 A CRISPR screen has ~20,000 candidate genes and a budget for testing a few hundred at a
 time. AssayLoop chooses which genes to test next, round after round, so that hits show up
@@ -713,5 +714,15 @@ partial or substituted input.
 
 ## Citation
 
-If you use this code, please cite the AssayLoop paper. <!-- TODO: replace with the final
-BibTeX entry once the paper has a citable reference. -->
+If you use this code, please cite the AssayLoop paper:
+
+```bibtex
+@article{edwards2026biologyloop,
+  title={Biology-in-the-loop: Amortized Adaptive Hit Discovery in CRISPR Screens},
+  author={Edwards, Carl and De Brouwer, Edward and Li, Xiner and Lee, Namkyeong and
+          Hajiramezanali, Ehsan and Biton, Anne and Mostafavi, Sara and Scalia, Gabriele},
+  journal={arXiv preprint arXiv:2609.11877},
+  url={https://arxiv.org/abs/2609.11877},
+  year={2026}
+}
+```

@@ -2,9 +2,7 @@
 
 Code for **"Biology-in-the-loop: Amortized Adaptive Hit Discovery in CRISPR Screens."**
 
-[:globe_with_meridians: Website](https://genentech.github.io/AssayLoop) | [:hugs: Checkpoints](https://huggingface.co/collections/Genentech/assaybench) | [:page_with_curl: Paper](README_DETAILED.md) | [![PyPI](https://img.shields.io/pypi/v/assaybench)](https://pypi.org/project/assaybench/)
-<!-- TODO: the Paper badge points at README_DETAILED.md until the arXiv ID exists.
-     Repoint it at the arXiv abstract then, alongside the Citation BibTeX below. -->
+[:globe_with_meridians: Website](https://genentech.github.io/AssayLoop) | [:hugs: Checkpoints](https://huggingface.co/collections/Genentech/assaybench) | [:page_with_curl: Paper](https://arxiv.org/abs/2609.11877) | [![PyPI](https://img.shields.io/pypi/v/assaybench)](https://pypi.org/project/assaybench/)
 
 [![Try it yourself](https://img.shields.io/badge/Try_it_yourself!-Run_AssayFormer_in_your_browser-176b87?style=for-the-badge)](https://genentech.github.io/AssayLoop/try.html)
 
@@ -212,5 +210,15 @@ uv run assayloop figure --list             # every paper figure, and what has to
 
 ## Citation
 
-If you use this code, please cite the AssayLoop paper. <!-- TODO: replace with the final
-BibTeX entry once the paper has a citable reference. -->
+If you use this code, please cite the AssayLoop paper:
+
+```bibtex
+@article{edwards2026biologyloop,
+  title={Biology-in-the-loop: Amortized Adaptive Hit Discovery in CRISPR Screens},
+  author={Edwards, Carl and De Brouwer, Edward and Li, Xiner and Lee, Namkyeong and
+          Hajiramezanali, Ehsan and Biton, Anne and Mostafavi, Sara and Scalia, Gabriele},
+  journal={arXiv preprint arXiv:2609.11877},
+  url={https://arxiv.org/abs/2609.11877},
+  year={2026}
+}
+```

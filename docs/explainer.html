@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<!--
+  AssayLoop explainer — interactive port of animation/render.py.
+
+  Self-contained apart from `narration.mp3`, which sits next to this file.
+  The coordinate system, easing functions, palette and scene timings mirror
+  the Python renderer one-for-one, so the two stay in step: world space is
+  16x9 units with the origin at centre screen, and every beat boundary comes
+  from the measured narration durations rather than a guess.
+-->
+<meta charset="utf-8">
+<title>AssayLoop — Biology in the loop</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root{
+    --bg:#0B0E13; --white:#ECECEC; --grey:#7A8290; --greyd:#3A414E;
+    --blue:#58C4DD; --green:#83C167; --yellow:#FFD24A; --gold:#F0AC5F; --red:#FC6255;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--white);
+    font-family:"STIX Two Text","Times New Roman",Georgia,serif}
+  #wrap{max-width:1180px;margin:0 auto;padding:22px 18px 40px}
+  #stage{position:relative;width:100%;aspect-ratio:16/9;background:var(--bg);
+    border:1px solid #1b2029;border-radius:10px;overflow:hidden}
+  canvas{width:100%;height:100%;display:block}
+  #cap{min-height:2.6em;margin:14px 2px 0;color:var(--grey);font-size:17px;
+    line-height:1.45;text-align:center}
+  #bar{display:flex;align-items:center;gap:14px;margin-top:14px}
+  button{background:#161b24;color:var(--white);border:1px solid #2a313d;
+    border-radius:7px;padding:9px 17px;font:inherit;font-size:15px;cursor:pointer}
+  button:hover{background:#1e2530;border-color:#3a4250}
+  #scrub{flex:1;accent-color:var(--green);cursor:pointer}
+  #clock{color:var(--grey);font-size:14px;font-variant-numeric:tabular-nums;
+    min-width:96px;text-align:right}
+  #chips{display:flex;gap:7px;flex-wrap:wrap;margin-top:13px}
+  .chip{background:#141922;border:1px solid #242c38;color:var(--grey);
+    border-radius:20px;padding:5px 13px;font-size:13px;cursor:pointer}
+  .chip:hover{color:var(--white);border-color:#39424f}
+  .chip.on{color:var(--green);border-color:#3c5a3a;background:#141d16}
+  footer{margin-top:22px;color:#4a525f;font-size:13px;line-height:1.7}
+  footer a{color:var(--grey)}
+</style>
+
+<div id="wrap">
+  <div id="stage"><canvas id="c" width="1920" height="1080"></canvas></div>
+  <div id="cap"></div>
+  <div id="bar">
+    <button id="play">Play</button>
+    <input id="scrub" type="range" min="0" max="194.09" step="0.01" value="0">
+    <span id="clock">0:00</span>
+    <button id="mute">Sound on</button>
+  </div>
+  <div id="chips"></div>
+  <footer>
+    <strong style="color:#8b94a2">Biology-in-the-loop: Amortized Adaptive Hit Discovery in CRISPR Screens</strong><br>
+    Edwards, De Brouwer, Li, Lee, Hajiramezanali, Biton, Mostafavi, Scalia — Genentech.
+    <a href="https://arxiv.org/abs/2609.11877">arXiv:2609.11877</a> ·
+    <a href="https://genentech.github.io/AssayLoop/">project page</a><br>
+    <a href="assets/explainer/assayloop-explainer.mp4">Download the video (MP4)</a> ·
+    <a href="assets/explainer/assayloop-explainer.srt">subtitles (SRT)</a><br>
+    Recall curves are measured on the 20 temporally held-out test screens.
+    The random line is the analytic expectation &mdash; a random policy finds hits in
+    proportion to the fraction of the library queried &mdash; not a measured run.
+  </footer>
+</div>
+
+<audio id="vo" src="assets/explainer/narration.mp3" preload="auto"></audio>
+
+<script>
+// ---------------------------------------------------------------- data ----
+const D = {
+  nScreens:1389, nTrain:1349, nVal:20, nTest:20, rounds:10, batch:100,
+  handoffK:3, nGenes:20000,
+  // measured: output/analysis/recovery_curves_mean.csv, mean over 20 test screens
+  curves:{
+    assayloop:  [0,.0737,.1085,.1399,.1588,.1807,.2038,.2261,.2432,.2607,.2770],
+    gemini:     [0,.0737,.1085,.1399,.1644,.1826,.1992,.2128,.2270,.2364,.2465],
+    assayformer:[0,.0278,.0533,.0863,.1121,.1386,.1604,.1820,.2036,.2206,.2316],
+    // Not measured and not fitted: a random policy recovers hits in proportion
+    // to the fraction of library queried, so recall is linear in budget spent
+    // and exact by construction. Figure 4A draws this as the identity line.
+    random:     [0,.0049,.0098,.0147,.0196,.0245,.0294,.0343,.0392,.0441,.0490]
+  },
+  ef:{random:1.04,poh:2.41,screen_knn:3.40,bpmf:4.49,gemini:4.71,assayformer:4.83,assayloop:5.67},
+  scaling:[[1,1.63],[2,1.98],[5,2.60],[10,3.09],[20,3.24],[50,3.28],[100,3.94],
+           [200,4.01],[400,4.05],[800,4.50],[1349,4.83]]
+};
+
+const BEATS = [{"scene": "intro", "start": 0.0, "end": 7.331, "say": "A genome-wide CRISPR screen puts a question to every gene: is this gene a hit? There are twenty thousand candidate genes."}, {"scene": "screen", "start": 8.331, "end": 14.508, "say": "But what is a CRISPR screen? A screen tests which genes control a specific cellular behaviour or trait."}, {"scene": "screen", "start": 14.858, "end": 26.288, "say": "You set up an experiment. Say, neuroblastoma cells, and whether they resist iron-mediated cell death. Then you switch one gene off, or on, and see whether the outcome changed."}, {"scene": "screen", "start": 26.638, "end": 31.838, "say": "Do that across the whole genome, and you learn which genes control the behaviour you care about."}, {"scene": "hits", "start": 32.338, "end": 42.9, "say": "A few of those genes are hits. A hit is a gene where switching it off, or on, actually produces the effect you are looking for. In a typical screen, only one in a hundred are hits."}, {"scene": "hits", "start": 43.25, "end": 47.827, "say": "You do not know which ones they are. That is the whole point of running the screen."}, {"scene": "budget", "start": 48.327, "end": 59.432, "say": "But testing all of them is often out of reach. The readout is too slow, or too expensive. So you get a budget: one thousand genes, five percent of the library."}, {"scene": "budget", "start": 59.782, "end": 61.402, "say": "Which thousand should you pick?"}, {"scene": "loop", "start": 62.052, "end": 68.253, "say": "You don't have to choose all at once. Spend the budget in rounds. One hundred genes, ten times."}, {"scene": "loop", "start": 68.603, "end": 76.01, "say": "After each round you learn which of those hundred were hits, and that answer can change what you pick next. That is the loop."}, {"scene": "loop", "start": 76.36, "end": 86.718, "say": "This is AssayBench-Loop: one thousand three hundred and eighty-nine real CRISPR screens, split by time. Train on the past, test on twenty screens from the future."}, {"scene": "curve", "start": 87.218, "end": 95.462, "say": "We can picture any strategy with a recovery curve: the fraction of all hits you have found, against the fraction of the library you have sampled."}, {"scene": "curve", "start": 95.812, "end": 103.377, "say": "Pick genes at random, and you find hits at exactly the rate you sample them. A straight line. That is the thing to beat."}, {"scene": "llm", "start": 103.877, "end": 114.54, "say": "One way to fill that first round is to ask a language model. It has read the literature, so it already has an opinion about which genes are plausible, before you measure anything."}, {"scene": "llm", "start": 115.49, "end": 121.35, "say": "And it works. Gemini three point one Pro finds hits at nearly five times the random rate."}, {"scene": "llm", "start": 121.7, "end": 130.156, "say": "But watch what happens as results come back. The curve flattens. The prior is strong. The learning from feedback is weak."}, {"scene": "former", "start": 130.656, "end": 142.615, "say": "AssayFormer is the opposite animal. A transformer trained across all thirteen hundred historical screens. It takes the history as input: every gene tested so far, and whether it was a hit."}, {"scene": "former", "start": 142.965, "end": 148.213, "say": "It starts colder. Before the first batch, it knows little about this particular screen."}, {"scene": "former", "start": 148.563, "end": 152.263, "say": "But every round of feedback sharpens it, and it keeps climbing."}, {"scene": "handoff", "start": 152.763, "end": 161.56, "say": "LLMs have a strong prior but weak adaptation. AssayFormer has a weak prior but strong adaptation. So use each one where it is best."}, {"scene": "handoff", "start": 161.91, "end": 169.264, "say": "Let the language model drive the first three rounds. Then hand the accumulated history to AssayFormer, and let it run."}, {"scene": "handoff", "start": 169.614, "end": 171.033, "say": "That is AssayLoop."}, {"scene": "result", "start": 171.683, "end": 180.545, "say": "Five point seven times better than random. Twenty-seven point seven percent of hits in the screen are found by sampling only five percent of the library."}, {"scene": "result", "start": 180.895, "end": 188.632, "say": "And because the policy is learned from past experiments, it improves as those accumulate, with no sign yet of saturating."}, {"scene": "result", "start": 188.982, "end": 192.589, "say": "Biology in the loop. Try it on our website today!"}];
+// Scenes bind beats by name, so inserting a beat cannot re-point a later scene.
+const beatsOf = name => BEATS.filter(b => b.scene === name);
+const TOTAL = 194.09;
+
+// --------------------------------------------------------------- style ----
+const C = {bg:'#0B0E13', white:'#ECECEC', grey:'#7A8290', greyd:'#3A414E',
+  blue:'#58C4DD', teal:'#5CD0B3', green:'#83C167', yellow:'#FFD24A',
+  gold:'#F0AC5F', red:'#FC6255'};
+const ROLE = {random:C.grey, llm:C.yellow, former:C.blue, loop:C.green,
+              hit:C.red, accent:C.gold};
+// matplotlib points -> canvas px at this scale
+const PT = 100/72, SC = 120;
+const T = {title:60*PT, sub:36*PT, body:30*PT, cap:26*PT, sm:21*PT, tiny:17*PT};
+
+const cv = document.getElementById('c'), g = cv.getContext('2d');
+const X = x => (x + 8) * SC, Y = y => (4.5 - y) * SC, U = n => n * SC;
+
+// ---------------------------------------------------------------- ease ----
+const clamp=(t,a=0,b=1)=>t<a?a:t>b?b:t;
+const smooth=t=>{t=clamp(t);return t*t*(3-2*t)};
+const smoother=t=>{t=clamp(t);return t*t*t*(t*(t*6-15)+10)};
+const backOut=(t,s=1.5)=>{t=clamp(t)-1;return t*t*((s+1)*t+s)+1};
+const tab=t=>{t=clamp(t);return t<.5?smooth(2*t):smooth(2*(1-t))};
+function seg(t,a,b,f=smooth){ if(b<=a) return t>=b?1:0; return f(clamp((t-a)/(b-a))); }
+function stag(i,n,t,a,b,ov=.6){
+  if(n<=1) return seg(t,a,b);
+  const each=(b-a)/(1+(n-1)*(1-ov)), step=each*(1-ov), s=a+i*step;
+  return seg(t,s,s+each);
+}
+function fio(t,a,b,c,d){
+  if(t<a||t>d) return 0;
+  if(t<b) return smooth((t-a)/Math.max(b-a,1e-9));
+  if(t<=c) return 1;
+  return 1-smooth((t-c)/Math.max(d-c,1e-9));
+}
+function mix(c1,c2,t){
+  const h=s=>[1,3,5].map(i=>parseInt(s.substr(i,2),16));
+  const a=h(c1), b=h(c2); t=clamp(t);
+  return '#'+a.map((v,i)=>Math.round(v+(b[i]-v)*t).toString(16).padStart(2,'0')).join('');
+}
+
+// -------------------------------------------------------------- drawing ---
+function text(x,y,s,{size=T.body,col=C.white,a=1,ha='center',va='middle',
+                     rise=0,font='serif',rot=0}={}){
+  if(a<=.004) return;
+  g.save(); g.globalAlpha=Math.min(a,1); g.fillStyle=col;
+  g.font=`${size}px ${font==='mono'?'ui-monospace,Menlo,Consolas,monospace'
+          :'"STIX Two Text","Times New Roman",Georgia,serif'}`;
+  g.textAlign=ha==='center'?'center':ha; g.textBaseline=va;
+  g.translate(X(x), Y(y-rise)); if(rot) g.rotate(-rot*Math.PI/180);
+  String(s).split('\n').forEach((ln,i,arr)=>
+    g.fillText(ln, 0, (i-(arr.length-1)/2)*size*1.22));
+  g.restore();
+}
+const fadeText=(x,y,s,p,o={})=>text(x,y,s,{...o,a:(o.a??1)*p,rise:(o.rise??.28)*(1-p)});
+function typeOn(x,y,s,p,o={}){ const n=Math.round(s.length*clamp(p));
+  if(n>0) text(x,y,s.slice(0,n),o); }
+
+function dots(pts,{r=3,col=C.grey,a=1}={}){
+  if(a<=.004||!pts.length) return;
+  g.save(); g.globalAlpha=a; g.fillStyle=col;
+  if(r<2.5){
+    // The gene grid is 20,000 marks. At this size a square is
+    // indistinguishable from a disc and fillRect is far cheaper than arc.
+    const d=r*2;
+    for(const [x,y] of pts) g.fillRect(X(x)-r, Y(y)-r, d, d);
+  }else{
+    // One path, one fill — not 20,000 of each.
+    g.beginPath();
+    for(const [x,y] of pts){ const px=X(x), py=Y(y);
+      g.moveTo(px+r,py); g.arc(px,py,r,0,6.2832); }
+    g.fill();
+  }
+  g.restore();
+}
+function line(x0,y0,x1,y1,{col=C.greyd,w=2,a=1,dash=null}={}){
+  if(a<=.004) return; g.save(); g.globalAlpha=a; g.strokeStyle=col;
+  g.lineWidth=w*1.4; g.lineCap='round'; if(dash) g.setLineDash(dash.map(v=>v*1.4));
+  g.beginPath(); g.moveTo(X(x0),Y(y0)); g.lineTo(X(x1),Y(y1)); g.stroke(); g.restore();
+}
+function path(xs,ys,p=1,{col=C.blue,w=3,a=1,dash=null}={}){
+  p=clamp(p); if(a<=.004||p<=0||xs.length<2) return;
+  const seglen=[], cum=[0];
+  for(let i=1;i<xs.length;i++){
+    const d=Math.hypot(xs[i]-xs[i-1], ys[i]-ys[i-1]);
+    seglen.push(d); cum.push(cum[i-1]+d);
+  }
+  const tgt=cum[cum.length-1]*p;
+  let px=[xs[0]], py=[ys[0]];
+  for(let i=1;i<xs.length;i++){
+    if(cum[i]<=tgt){ px.push(xs[i]); py.push(ys[i]); }
+    else{ const f=(tgt-cum[i-1])/Math.max(seglen[i-1],1e-12);
+      px.push(xs[i-1]+f*(xs[i]-xs[i-1])); py.push(ys[i-1]+f*(ys[i]-ys[i-1])); break; }
+  }
+  g.save(); g.globalAlpha=a; g.strokeStyle=col; g.lineWidth=w*1.4;
+  g.lineCap='round'; g.lineJoin='round'; if(dash) g.setLineDash(dash.map(v=>v*1.4));
+  g.beginPath(); g.moveTo(X(px[0]),Y(py[0]));
+  for(let i=1;i<px.length;i++) g.lineTo(X(px[i]),Y(py[i]));
+  g.stroke(); g.restore();
+}
+function circle(x,y,r,{col=C.blue,w=2.5,fill=null,a=1}={}){
+  if(a<=.004) return; g.save(); g.globalAlpha=a;
+  g.beginPath(); g.arc(X(x),Y(y),U(r),0,6.2832);
+  if(fill){ g.fillStyle=fill; g.fill(); }
+  g.strokeStyle=col; g.lineWidth=w*1.4; if(w>0) g.stroke(); g.restore();
+}
+function rect(x,y,w,h,{col=C.greyd,lw=2,fill=null,a=1,r=0}={}){
+  if(a<=.004||w<=0) return; g.save(); g.globalAlpha=a;
+  const px=X(x-w/2), py=Y(y+h/2), pw=U(w), ph=U(h), rr=Math.min(U(r),pw/2,ph/2);
+  g.beginPath(); g.roundRect(px,py,pw,ph,rr);
+  if(fill){ g.fillStyle=fill; g.fill(); }
+  if(lw>0){ g.strokeStyle=col; g.lineWidth=lw*1.4; g.stroke(); } g.restore();
+}
+function arrow(x0,y0,x1,y1,{col=C.grey,w=2.2,a=1,curve=0,head=11}={}){
+  if(a<=.004) return; g.save(); g.globalAlpha=a; g.strokeStyle=col;
+  g.fillStyle=col; g.lineWidth=w*1.4; g.lineCap='round';
+  const ax=X(x0),ay=Y(y0),bx=X(x1),by=Y(y1);
+  const mx=(ax+bx)/2 - (by-ay)*curve, my=(ay+by)/2 + (bx-ax)*curve;
+  g.beginPath(); g.moveTo(ax,ay); g.quadraticCurveTo(mx,my,bx,by); g.stroke();
+  const ang=Math.atan2(by-my, bx-mx);
+  g.beginPath(); g.moveTo(bx,by);
+  g.lineTo(bx-head*Math.cos(ang-.4), by-head*Math.sin(ang-.4));
+  g.lineTo(bx-head*Math.cos(ang+.4), by-head*Math.sin(ang+.4));
+  g.closePath(); g.fill(); g.restore();
+}
+function tri(pts,{col=C.blue,a=1}={}){
+  if(a<=.004) return; g.save(); g.globalAlpha=a; g.fillStyle=col;
+  g.beginPath(); g.moveTo(X(pts[0][0]),Y(pts[0][1]));
+  for(let i=1;i<pts.length;i++) g.lineTo(X(pts[i][0]),Y(pts[i][1]));
+  g.closePath(); g.fill(); g.restore();
+}
+
+// ------------------------------------------------------------ plot frame --
+const PX0=-5.0, PY0=-2.75, PW=9.4, PH=5.15, YTOP=.30;
+const tx = r => PX0 + PW*r/D.rounds;
+const ty = v => PY0 + PH*v/YTOP;
+const cxs = k => D.curves[k].map((_,i)=>tx(i));
+const cys = k => D.curves[k].map(v=>ty(v));
+
+function plotFrame(a, roundsAlpha=0, labels=true){
+  // x is the fraction of the library sampled, as in the paper. Each round
+  // spends 100 of ~20,000 genes, so a round is exactly half a percent and
+  // both readings land on the same ticks.
+  if(a<=.004) return;
+  line(PX0,PY0,PX0+PW,PY0,{a}); line(PX0,PY0,PX0,PY0+PH,{a});
+  for(let r=0;r<=D.rounds;r++){
+    const major = r%2===0;
+    line(tx(r),PY0,tx(r),PY0-(major?.10:.06),{w:major?1.6:1.1,a});
+    if(major) text(tx(r),PY0-.34,(r*0.5)+'%',{size:T.sm,col:C.grey,a});
+  }
+  if(labels) text(PX0+PW/2,PY0-.92,'fraction of the library sampled',
+                  {size:T.cap,col:C.grey,a});
+  if(roundsAlpha>.01){
+    for(let r=0;r<=D.rounds;r+=2)
+      text(tx(r),PY0-1.32,r,{size:T.tiny,col:C.greyd,a:a*roundsAlpha});
+    text(PX0-.30,PY0-1.32,'round',{size:T.tiny,col:C.greyd,a:a*roundsAlpha,ha:'right'});
+  }
+  for(const v of [0,.10,.20,.30]){
+    line(PX0,ty(v),PX0-.10,ty(v),{w:1.6,a});
+    text(PX0-.30,ty(v),(v*100).toFixed(0)+'%',{size:T.sm,col:C.grey,a,ha:'right'});
+  }
+  if(labels) text(PX0-1.08,PY0+PH/2,'fraction of all\nhits found',
+                  {size:T.cap,col:C.grey,a,rot:90});
+}
+
+// -------------------------------------------------------------- scene 1 ---
+const NCOL=200, NROW=100;
+let RS=7; const rnd=()=>(RS=(RS*1103515245+12345)&0x7fffffff)/0x7fffffff;
+const GRID=[]; for(let r=0;r<NROW;r++) for(let c2=0;c2<NCOL;c2++)
+  GRID.push([-6.4+12.8*(c2+.5)/NCOL, -2.35+5.0*(r+.5)/NROW]);
+const perm=[...GRID.keys()];
+for(let i=perm.length-1;i>0;i--){ const j=Math.floor(rnd()*(i+1)); [perm[i],perm[j]]=[perm[j],perm[i]]; }
+const HITS=perm.slice(0,180).map(i=>GRID[i]);
+const PICKS=perm.slice(200,1200).map(i=>GRID[i]);
+const BYX=[...GRID].sort((a,b)=>a[0]-b[0]);
+
+function drawGrid(appear=1, dim=0){
+  const n = Math.floor(GRID.length*appear);
+  if(n>0) dots(BYX.slice(0,n),{r:1.6,col:mix(C.grey,C.greyd,dim),a:.9});
+}
+
+function sIntro(t,B){
+  const [b0] = beatsOf('intro');
+  const out = seg(t,b0.end-.2,b0.end+.3);
+  fadeText(0,3.62,'A genome-wide CRISPR screen',
+    fio(t,b0.start+.2,b0.start+1.6,b0.end-.2,b0.end+.3),{size:T.title});
+  fadeText(0,2.92,'asks a question of every gene',
+    fio(t,b0.start+.7,b0.start+2.2,b0.end-.2,b0.end+.3),{size:T.sub,col:C.grey});
+  drawGrid(seg(t,b0.start+1.4,b0.start+4.4,smoother));
+  fadeText(0,-3.30,'20,000 candidate genes',
+    seg(t,b0.start+3.6,b0.start+4.8)*(1-out),{size:T.sub});
+}
+
+function sScreen(t,B){
+  const [b1,b2,b3] = beatsOf('screen');
+  fadeText(0,3.62,'What is a CRISPR screen?',
+    fio(t,b1.start+.1,b1.start+1.2,b3.start+.1,b3.start+.6),{size:T.title});
+  fadeText(0,2.88,'which genes control a cellular behaviour or trait',
+    fio(t,b1.start+1.8,b1.start+3.0,b3.start+.1,b3.start+.6),{size:T.sub,col:C.grey});
+
+  // Everything the worked example puts on screen clears out before the grid
+  // comes back, so the two never share the same space.
+  const gone=seg(t,b3.start+.1,b3.start+.8);
+  const card=fio(t,b1.start+2.6,b1.start+3.6,b3.start+.1,b3.start+.8);
+  if(card>.01){
+    // Box spans 0.50..2.14; the kicker sits above it, not on the edge.
+    rect(0,1.32,8.6,1.64,{col:C.greyd,lw:1.8,a:card,fill:mix(C.bg,C.white,.03),r:.06});
+    text(0,2.38,'a screen asks one question',{size:T.sm,col:C.grey,a:card});
+    ['Which genes, when activated in neuroblastoma,','confer resistance to RSL3?']
+      .forEach((ln,i)=>typeOn(0,1.72-.40*i,ln,
+        seg(t,b1.start+3.3+.55*i,b1.start+4.5+.55*i),
+        {size:T.cap,col:C.white,a:card}));
+    // RSL3 inhibits GPX4, so the readout is ferroptosis resistance.
+    fadeText(0,.86,'RSL3 triggers ferroptosis  —  iron-mediated cell death',
+      seg(t,b1.start+4.6,b1.start+5.6)*card,{size:T.sm,col:ROLE.hit});
+  }
+
+  const steps=[['set up the assay','neuroblastoma cells',C.grey],
+               ['switch one gene off, or on','CRISPR perturbation',ROLE.former],
+               ['did the outcome change?','if yes, it is a hit',ROLE.hit]];
+  steps.forEach(([lb,sub,col],i)=>{
+    const p=stag(i,3,t,b2.start+.8,b2.start+5.6,.42)*(1-gone);
+    if(p<=.01) return;
+    const x=-4.55+i*4.55;
+    rect(x,-.95,3.85,1.40,{col,lw:2,a:p,fill:mix(C.bg,col,.10),r:.06});
+    text(x,-.70,lb,{size:T.cap,col,a:p});
+    text(x,-1.22,sub,{size:T.sm,col:C.grey,a:p});
+    if(i){ const a=stag(i-1,2,t,b2.start+1.9,b2.start+5.4,.4);
+      arrow(x-2.62,-.95,x-1.98,-.95,{col:C.grey,w:2,a:a*(1-gone)}); }
+  });
+
+  if(gone>.01){
+    drawGrid(seg(t,b3.start+.7,b3.start+2.9,smoother));
+    fadeText(0,3.62,'Repeat for every gene',seg(t,b3.start+.4,b3.start+1.4),{size:T.title});
+    fadeText(0,-3.30,'20,000 experiments, one per gene',
+      seg(t,b3.start+2.4,b3.start+3.4),{size:T.sub});
+  }
+}
+
+function sHits(t,B){
+  const [b4,b5] = beatsOf('hits');
+  drawGrid();
+  // Held for the whole explanation, then taken away again: not knowing which
+  // ones they are is the point.
+  const hitsIn=seg(t,b4.start+.4,b4.start+1.8,smoother);
+  const hits=hitsIn*(1-seg(t,b5.start+1.6,b5.start+3.2));
+  if(hits>.01) dots(HITS.slice(0,Math.floor(HITS.length*hitsIn)),
+    {r:3.4,col:ROLE.hit,a:hits});
+  fadeText(0,3.62,'What is a hit?',
+    fio(t,b4.start+.1,b4.start+1.1,b5.start-.5,b5.start+.1),
+    {size:T.title,col:ROLE.hit});
+  fadeText(0,-3.30,'perturb it, and the phenotype changes',
+    fio(t,b4.start+2.2,b4.start+3.4,b4.start+7.0,b4.start+7.8),
+    {size:T.sub,col:ROLE.hit});
+  fadeText(0,-3.30,'only about 1 in 100 are hits',
+    fio(t,b4.start+7.6,b4.start+8.6,b5.start+.6,b5.start+1.4),
+    {size:T.sub,col:ROLE.hit});
+  fadeText(0,3.62,'But you cannot see them',
+    fio(t,b5.start+.2,b5.start+1.2,b5.end+.1,b5.end+.5),{size:T.title});
+  fadeText(0,-3.30,'that is what the screen is for',
+    fio(t,b5.start+2.8,b5.start+3.8,b5.end+.1,b5.end+.5),{size:T.sub,col:C.grey});
+}
+
+function sBudget(t,B){
+  const [b6,b7] = beatsOf('budget');
+  drawGrid(1, seg(t,b6.start+.6,b6.start+2.2));
+  fadeText(0,3.62,'The budget',
+    fio(t,b6.start+.3,b6.start+1.3,b7.start-.9,b7.start-.3),
+    {size:T.title,col:ROLE.accent});
+  const pick=seg(t,b6.start+3.4,b6.start+6.0,smoother);
+  if(pick>0) dots(PICKS.slice(0,Math.floor(1000*pick)),{r:2.2,col:ROLE.accent,a:.95});
+  fadeText(0,-3.30,'1,000 genes  ·  5% of the library',
+    seg(t,b6.start+4.4,b6.start+5.6),{size:T.sub,col:ROLE.accent});
+  fadeText(0,3.62,'Which 1,000?',seg(t,b7.start-.4,b7.start+.4),{size:T.title});
+}
+
+// -------------------------------------------------------------- scene 2 ---
+function sLoop(t,B){
+  const [b3,b4,b5] = beatsOf('loop');
+  const alive=1-seg(t,b4.start-.5,b4.start+.5);
+  if(alive>.01){
+    fadeText(0,3.5,'Spend it in rounds',seg(t,b3.start,b3.start+1.2),{size:T.title});
+    for(let r=0;r<D.rounds;r++){
+      const p=stag(r,D.rounds,t,b3.start+.9,b3.start+4.3,.72);
+      if(p<=.01) continue;
+      const cx=-6.3+r*1.4;
+      rect(cx,.55,1.12,1.9,{col:C.greyd,lw:1.8,a:alive*p*.9,r:.06});
+      const m=Math.round(10*p), pts=[];
+      for(let row=0;row<m;row++) for(let col=0;col<10;col++)
+        pts.push([cx-.36+.08*col, .19+.08*row]);
+      dots(pts,{r:1.7,col:ROLE.former,a:alive*.95});
+      text(cx,-.72,r+1,{size:T.tiny,col:C.grey,a:alive*p});
+    }
+    fadeText(0,-1.55,'10 rounds  ×  100 genes  =  1,000',
+      seg(t,b3.start+3.2,b3.start+4.4)*alive,{size:T.sub,col:C.grey});
+  }
+
+  const cyc=fio(t,b4.start-.3,b4.start+1.0,b5.start-.9,b5.start-.1);
+  if(cyc>.01){
+    const R=1.85, lab=[['propose 100 genes',ROLE.former],
+      ['observe which are hits',ROLE.hit],['adapt the ranking',ROLE.loop]];
+    const ang=[90,-30,210];
+    const pos=ang.map(a=>[R*Math.cos(a*Math.PI/180), .35+R*Math.sin(a*Math.PI/180)]);
+    pos.forEach(([x,y],i)=>{
+      const p=stag(i,3,t,b4.start+.2,b4.start+2.4,.5);
+      circle(x,y,.30,{col:lab[i][1],w:2.6,fill:C.bg,a:cyc*p});
+      circle(x,y,.13,{col:lab[i][1],w:0,fill:lab[i][1],a:cyc*p});
+      text(x,y+(y>.35?.62:-.62),lab[i][0],{size:T.cap,col:lab[i][1],a:cyc*p});
+    });
+    for(let i=0;i<3;i++){
+      const j=(i+1)%3, p=stag(i,3,t,b4.start+1.1,b4.start+3.2,.5);
+      if(p<=.01) continue;
+      const [x0,y0]=pos[i], [x1,y1]=pos[j];
+      const L=Math.hypot(x1-x0,y1-y0), ux=(x1-x0)/L, uy=(y1-y0)/L;
+      arrow(x0+.44*ux, y0+.44*uy,
+            x0+ux*(.44+(L-.90)*p), y0+uy*(.44+(L-.90)*p),
+            {col:C.grey,w:2,a:cyc*.85,curve:-.16});
+    }
+    fadeText(0,3.5,'The loop',seg(t,b4.start,b4.start+1.0),{size:T.title});
+    fadeText(0,-3.05,"each round's answer changes the next question",
+      seg(t,b4.start+2.8,b4.start+4.0)*cyc,{size:T.cap,col:C.grey});
+  }
+
+  const bn=seg(t,b5.start-.2,b5.start+1.4);
+  if(bn>.01){
+    fadeText(0,3.5,'AssayBench-Loop',bn,{size:T.title});
+    fadeText(0,2.82,'1,389 real CRISPR screens, split by time',
+      seg(t,b5.start+.5,b5.start+1.9),{size:T.sub,col:C.grey});
+    const sp=[[D.nTrain,'1,349 train','< 2021',ROLE.former],
+              [D.nVal,'20 val','2021',ROLE.accent],
+              [D.nTest,'20 test','> 2021',ROLE.hit]];
+    const tot=sp.reduce((s,v)=>s+v[0],0);
+    let x=-5.9; const fw=11.5;
+    sp.forEach(([n,lb,yr,col],i)=>{
+      const p=stag(i,3,t,b5.start+1.6,b5.start+4.2,.45);
+      const w=Math.max(fw*n/tot,.34);
+      if(p>.01){
+        rect(x+w/2,.55,w*p,1.30,{col,lw:2,fill:mix(C.bg,col,.16),a:p,r:.05});
+        if(w>1.0){
+          text(x+w/2,.55,lb,{size:T.cap,col,a:p});
+          text(x+w/2,-.44,yr,{size:T.sm,col:C.grey,a:p});
+        }else{
+          const top=1.20+.62*i;
+          line(x+w/2,1.22,x+w/2,top,{col,w:1.2,a:p*.7});
+          text(x+w/2,top+.20,`${lb}   ${yr}`,{size:T.sm,col,a:p});
+        }
+      }
+      x+=w+.10;
+    });
+    arrow(-5.9,-1.25,5.9,-1.25,{col:C.greyd,w:1.8,a:seg(t,b5.start+3.4,b5.start+4.4)});
+    fadeText(0,-1.85,'time',seg(t,b5.start+3.6,b5.start+4.6),{size:T.sm,col:C.grey});
+    fadeText(0,-2.85,'train on the past  ·  test on the future',
+      seg(t,b5.start+6.2,b5.start+7.6),{size:T.sub});
+  }
+}
+
+// ------------------------------------------------- scene 2b: the measure ---
+function sCurve(t,B){
+  const [b8,b9] = beatsOf('curve');
+  fadeText(0,3.72,'The recovery curve',seg(t,b8.start,b8.start+1.1),{size:T.title});
+  plotFrame(seg(t,b8.start+.5,b8.start+1.8),
+            seg(t,b8.start+5.6,b8.start+6.8), false);
+
+  // Name each axis in the order the narration does, sweeping it as it is named
+  // so the empty plot has something to watch.
+  // The sweep is a transient highlight: it hands the axis back to grey before
+  // the random line is drawn, so it never competes with the data.
+  const done=seg(t,b9.start-1.3,b9.start-.4);
+  const hlY=seg(t,b8.start+2.4,b8.start+3.4)*(1-done);
+  const hlX=seg(t,b8.start+4.2,b8.start+5.2)*(1-done);
+  const py=seg(t,b8.start+2.4,b8.start+3.8,smoother)*(1-done);
+  if(py>.01) path([PX0,PX0],[PY0,PY0+PH],1,{col:ROLE.loop,w:3.4,a:py});
+  fadeText(PX0-1.08,PY0+PH/2,'fraction of all\nhits found',
+    seg(t,b8.start+2.4,b8.start+3.4),
+    {size:T.cap,col:mix(C.grey,ROLE.loop,hlY),rot:90});
+  const px=seg(t,b8.start+4.2,b8.start+5.6,smoother)*(1-done);
+  if(px>.01) path([PX0,PX0+PW],[PY0,PY0],1,{col:ROLE.accent,w:3.4,a:px});
+  fadeText(PX0+PW/2,PY0-.92,'fraction of the library sampled',
+    seg(t,b8.start+4.2,b8.start+5.2),
+    {size:T.cap,col:mix(C.grey,ROLE.accent,hlX)});
+
+  // Random: recall equals the fraction sampled, so the curve is the diagonal.
+  const rx=cxs('random'), ry=cys('random');
+  const pr=seg(t,b9.start+.3,b9.start+3.0,smoother);
+  path(rx,ry,pr,{col:ROLE.random,w:2.6,dash:[5,4]});
+  if(pr>.15) fadeText(rx[10]-.15,ry[10]+.36,'random expectation',
+    seg(t,b9.start+2.4,b9.start+3.4),{size:T.cap,col:ROLE.random,ha:'right'});
+  fadeText(0,2.95,'sample 5% at random, find 5% of the hits',
+    fio(t,b9.start+3.2,b9.start+4.4,b9.start+5.0,b9.start+5.6),{size:T.sub});
+  fadeText(0,2.95,'everything that follows is measured against this line',
+    seg(t,b9.start+5.6,b9.start+6.6),{size:T.sub,col:C.grey});
+}
+
+// -------------------------------------------------------------- scene 3 ---
+function sLLM(t,B){
+  const [b6,b7,b8] = beatsOf('llm');
+  const card=fio(t,b6.start-.2,b6.start+1.2,b7.start-1.1,b7.start-.35);
+  if(card>.01){
+    fadeText(0,3.55,'Ask a language model',seg(t,b6.start,b6.start+1.1),{size:T.title});
+    rect(-4.55,.55,4.5,2.5,{col:C.greyd,lw:1.8,a:card,fill:mix(C.bg,C.white,.03),r:.06});
+    text(-4.55,1.44,'screen description',{size:T.sm,col:C.grey,a:card});
+    ['Which genes, when activated','in neuroblastoma, confer','resistance to RSL3?']
+      .forEach((ln,i)=>typeOn(-4.55,.78-.52*i,ln,
+        seg(t,b6.start+.9+.30*i,b6.start+1.8+.30*i),{size:T.cap,a:card}));
+    arrow(-2.15,.55,-1.25,.55,{a:card*seg(t,b6.start+2.4,b6.start+3.0)});
+    const l=seg(t,b6.start+2.7,b6.start+3.5);
+    rect(-.30,.55,1.65,1.25,{col:ROLE.llm,lw:2.4,a:card*l,fill:mix(C.bg,ROLE.llm,.12),r:.06});
+    text(-.30,.55,'LLM',{size:T.sub,col:ROLE.llm,a:card*l});
+    arrow(.60,.55,1.50,.55,{a:card*seg(t,b6.start+3.3,b6.start+3.9)});
+    ['GPX4','ERMAP','GCH1','SLC7A11','ACSL4'].forEach((gn,i)=>
+      fadeText(2.95,1.75-.60*i,gn,stag(i,5,t,b6.start+3.6,b6.start+5.4,.55)*card,
+        {size:T.body,col:ROLE.llm,font:'mono'}));
+    fadeText(2.95,-1.35,'a ranking, before any measurement',
+      seg(t,b6.start+5.2,b6.start+6.4)*card,{size:T.sm,col:C.grey});
+    fadeText(0,-3.25,'an opinion from the literature  —  before any measurement',
+      seg(t,b6.start+6.0,b6.start+7.0)*card,{size:T.cap,col:C.grey});
+  }
+
+  const pa=seg(t,b7.start-.7,b7.start+.5);
+  plotFrame(pa);
+  if(pa>.01){
+    const gx=cxs('gemini'), gy=cys('gemini');
+    const pr=seg(t,b7.start+.2,b7.start+3.4,smoother);
+    path(gx,gy,pr,{col:ROLE.llm,w:4,a:pa});
+    const h=Math.round(pr*D.rounds);
+    if(h>=1) dots(gx.slice(0,h+1).map((x,i)=>[x,gy[i]]),{r:5,col:ROLE.llm,a:pa});
+    path(cxs('random'),cys('random'),seg(t,b7.start+.6,b7.start+2.6),
+      {col:ROLE.random,w:2.2,a:pa*.65,dash:[5,4]});
+    fadeText(tx(10)-.15,ty(D.curves.random[10])+.34,'random expectation',
+      seg(t,b7.start+2.2,b7.start+3.0)*pa,{size:T.sm,col:ROLE.random,ha:'right'});
+    fadeText(gx[10]+.20,gy[10],'Gemini 3.1 Pro',seg(t,b7.start+3.0,b7.start+3.9)*pa,
+      {size:T.cap,col:ROLE.llm,ha:'left'});
+    fadeText(gx[10]+.20,gy[10]-.42,'EF 4.71',seg(t,b7.start+3.3,b7.start+4.2)*pa,
+      {size:T.sm,col:ROLE.llm,ha:'left'});
+    fadeText(0,3.72,'A strong prior',seg(t,b7.start,b7.start+1.0),{size:T.title});
+  }
+
+  if(seg(t,b8.start+.8,b8.start+2.0)>.01){
+    const gx=cxs('gemini'), gy=cys('gemini');
+    [[0,3,ROLE.llm,'steep',.34],[7,10,C.grey,'flat',-.44]].forEach(([a,b,col,lb,dy],i)=>{
+      const p=stag(i,2,t,b8.start+.8,b8.start+3.0,.4);
+      if(p<=.01) return;
+      tri([[gx[a],gy[a]],[gx[b],gy[a]],[gx[b],gy[b]]],{col,a:.20*p});
+      line(gx[a],gy[a],gx[b],gy[b],{col,w:2.6,a:p});
+      text((gx[a]+gx[b])/2,gy[a]+dy,lb,{size:T.sm,col,a:p});
+    });
+    fadeText(0,2.95,'LLMs:  strong prior, weak adaptation',
+      seg(t,b8.start+3.2,b8.start+4.4),{size:T.sub});
+  }
+}
+
+// -------------------------------------------------------------- scene 4 ---
+function sFormer(t,B){
+  const [b9,b10,b11] = beatsOf('former');
+  const ar=fio(t,b9.start-.2,b9.start+1.3,b10.start-1.2,b10.start-.4);
+  if(ar>.01){
+    fadeText(0,3.55,'AssayFormer',seg(t,b9.start,b9.start+1.1),
+      {size:T.title,col:ROLE.former});
+    fadeText(0,2.88,'a policy trained across 1,349 completed screens',
+      seg(t,b9.start+.6,b9.start+1.9),{size:T.sub,col:C.grey});
+    const SCREEN_X=-6.35, GENE_X0=-4.70;
+    const hist=[['MYC',1],['STAT1',0],['APOE',1],['E2F1',0],['EGFR',1]];
+    hist.forEach(([gn,hit],i)=>{
+      const p=stag(i,hist.length,t,b9.start+1.8,b9.start+4.0,.55);
+      if(p<=.01) return;
+      const x=GENE_X0+i*1.50, col=hit?ROLE.hit:C.grey;
+      rect(x,1.30,1.30,.94,{col,lw:2,a:ar*p,fill:mix(C.bg,col,.13),r:.05});
+      text(x,1.50,gn,{size:T.sm,a:ar*p,font:'mono'});
+      text(x,1.04,`hit = ${hit}`,{size:T.tiny,col,a:ar*p});
+    });
+    const ph=seg(t,b9.start+1.8,b9.start+2.6);
+    text(GENE_X0+2*1.50,2.18,'what you have tested so far',
+      {size:T.sm,col:C.grey,a:ar*ph});
+    // The screen description is another token in the same sequence, and it
+    // sits leftmost so its line into the encoder never crosses the genes'.
+    const pd=seg(t,b9.start+3.9,b9.start+4.7);
+    rect(SCREEN_X,1.30,1.45,.94,{col:ROLE.llm,lw:2,a:ar*pd,
+      fill:mix(C.bg,ROLE.llm,.13),r:.05});
+    text(SCREEN_X,1.46,'screen',{size:T.tiny,col:ROLE.llm,a:ar*pd});
+    text(SCREEN_X,1.12,'description',{size:T.tiny,col:ROLE.llm,a:ar*pd});
+    text(SCREEN_X,2.18,'this assay',{size:T.sm,col:C.grey,a:ar*pd});
+    // Each token enters the encoder at its own evenly spaced position, the
+    // way a real sequence does — not all funnelled into one point.
+    const pt=seg(t,b9.start+4.8,b9.start+5.8);
+    // Sources and destinations are both left-to-right, so no two lines cross.
+    const encW=7.4, encTop=-1.42+.40;
+    const srcs=[SCREEN_X].concat(hist.map((_,i)=>GENE_X0+i*1.50));
+    srcs.forEach((sx,i)=>{
+      const dx=-encW/2+encW*(i+0.5)/srcs.length;
+      line(sx,1.30-.47,dx,encTop,{col:C.greyd,w:1.3,a:ar*pt*.7});
+      dots([[dx,encTop]],{r:2.6,col:ROLE.former,a:ar*pt*.8});
+    });
+    rect(0,-1.42,encW,.80,{col:ROLE.former,lw:2.4,a:ar*pt,
+      fill:mix(C.bg,ROLE.former,.12),r:.06});
+    text(0,-1.42,'transformer encoder',{size:T.body,col:ROLE.former,a:ar*pt});
+    const ps=seg(t,b9.start+6.0,b9.start+7.2);
+    arrow(0,-1.86,0,-2.36,{w:2,a:ar*ps});
+    text(0,-2.72,'a score for every untested gene',{size:T.cap,a:ar*ps});
+    let s2=99; const rr=()=>(s2=(s2*1103515245+12345)&0x7fffffff)/0x7fffffff;
+    const bars=[...Array(34)].map(()=>Math.pow(rr(),2.2)).sort((a,b)=>b-a);
+    bars.forEach((h,i)=>{
+      const p=stag(i,34,t,b9.start+7.0,b9.start+8.6,.88);
+      line(-4.0+i*.242,-3.05,-4.0+i*.242,-3.05-.62*h,
+        {col:ROLE.former,w:4,a:ar*p*.9});
+    });
+    fadeText(0,-4.00,'it reads the feedback, not just the description',
+      seg(t,b9.start+8.6,b9.start+9.8)*ar,{size:T.cap,col:C.grey});
+  }
+
+  const pa=seg(t,b10.start-.8,b10.start+.4);
+  plotFrame(pa);
+  if(pa>.01){
+    const gx=cxs('gemini'), gy=cys('gemini');
+    path(gx,gy,1,{col:ROLE.llm,w:3.4,a:pa*.55});
+    fadeText(gx[10]+.20,gy[10]+.10,'Gemini 3.1 Pro',pa,{size:T.sm,col:ROLE.llm,ha:'left'});
+    const fx=cxs('assayformer'), fy=cys('assayformer');
+    const pr=seg(t,b10.start+.1,b10.start+3.2,smoother);
+    path(fx,fy,pr,{col:ROLE.former,w:4,a:pa});
+    const h=Math.round(pr*D.rounds);
+    if(h>=1) dots(fx.slice(0,h+1).map((x,i)=>[x,fy[i]]),{r:5,col:ROLE.former,a:pa});
+    fadeText(fx[10]+.20,fy[10]-.34,'AssayFormer',seg(t,b10.start+2.6,b10.start+3.5)*pa,
+      {size:T.cap,col:ROLE.former,ha:'left'});
+    fadeText(0,3.72,'A cold start that learns',seg(t,b10.start-.3,b10.start+.8),
+      {size:T.title});
+    const cs=fio(t,b10.start+.7,b10.start+1.4,b11.start+.2,b11.start+.9);
+    if(cs>.01){
+      // The gap between the two curves here is barely taller than the text,
+      // so the callout sits well above both and reaches down with a leader.
+      circle(fx[1],fy[1],.30,{col:C.white,w:2,a:cs*.8});
+      line(fx[1]+.22,fy[1]+1.52,fx[1]+.12,fy[1]+.36,{col:C.white,w:1.2,a:cs*.45});
+      text(fx[1]+.26,fy[1]+1.68,'starts behind',{size:T.sm,a:cs,ha:'left'});
+    }
+    const cl=seg(t,b11.start+.4,b11.start+1.6);
+    if(cl>.01){
+      tri([[fx[6],fy[6]],[fx[10],fy[6]],[fx[10],fy[10]]],{col:ROLE.former,a:.20*cl});
+      line(fx[6],fy[6],fx[10],fy[10],{col:ROLE.former,w:2.6,a:cl});
+      fadeText(0,2.95,'AssayFormer:  weak prior, strong adaptation',
+        seg(t,b11.start+.9,b11.start+2.0),{size:T.sub});
+    }
+  }
+}
+
+// -------------------------------------------------------------- scene 5 ---
+function sHandoff(t,B){
+  const [b12,b13,b14] = beatsOf('handoff');
+  // k is a round index, so surface the round numbering under the % axis here.
+  plotFrame(1, seg(t,b13.start+.1,b13.start+1.1));
+  const gx=cxs('gemini'), gy=cys('gemini');
+  const fx=cxs('assayformer'), fy=cys('assayformer');
+  const lx=cxs('assayloop'), ly=cys('assayloop');
+  const ghost=1-.45*seg(t,b13.start+1.6,b13.start+3.0);
+  path(gx,gy,1,{col:ROLE.llm,w:3.4,a:ghost});
+  path(fx,fy,1,{col:ROLE.former,w:3.4,a:ghost});
+
+  const gone=seg(t,b14.start-.7,b14.start+.1);
+  const p12=seg(t,b12.start,b12.start+1.2)*(1-gone);
+  const p12b=seg(t,b12.start+1.4,b12.start+2.6)*(1-gone);
+  fadeText(gx[10]+.20,gy[10]+.56,'strong prior',p12,{size:T.sm,col:ROLE.llm,ha:'left'});
+  fadeText(gx[10]+.20,gy[10]+.20,'weak adaptation',p12,{size:T.sm,col:ROLE.llm,ha:'left'});
+  fadeText(fx[10]+.20,fy[10]-.22,'weak prior',p12b,{size:T.sm,col:ROLE.former,ha:'left'});
+  fadeText(fx[10]+.20,fy[10]-.58,'strong adaptation',p12b,
+    {size:T.sm,col:ROLE.former,ha:'left'});
+  fadeText(0,3.72,'Use each where it wins',
+    seg(t,b12.start,b12.start+1.1)*(1-gone),{size:T.title});
+
+  const hm=seg(t,b13.start+.3,b13.start+1.3);
+  if(hm>.01){
+    line(tx(D.handoffK),PY0,tx(D.handoffK),PY0+PH*.96,
+      {col:C.white,w:1.8,a:hm*.5,dash:[4,5]});
+    text(tx(D.handoffK),PY0+PH*.99+.22,`handoff  ·  k = ${D.handoffK}`,
+      {size:T.cap,a:hm});
+  }
+  const K=D.handoffK;
+  const pw=seg(t,b13.start+.6,b13.start+2.2,smoother);
+  const pr=seg(t,b13.start+2.0,b13.start+4.4,smoother);
+  if(pw>.01) path(lx.slice(0,K+1),ly.slice(0,K+1),pw,{col:ROLE.loop,w:5});
+  if(pr>.01){
+    path(lx.slice(K),ly.slice(K),pr,{col:ROLE.loop,w:5});
+    const h=K+Math.round(pr*(D.rounds-K));
+    dots(lx.slice(0,h+1).map((x,i)=>[x,ly[i]]),{r:5.6,col:ROLE.loop});
+  }
+  if(pw>.4){
+    // Lifted clear of the curve, with a leader so it still points at the
+    // segment where green is running on top of yellow.
+    const lab=fio(t,b13.start+1.0,b13.start+1.7,b13.start+2.6,b13.start+3.3);
+    if(lab>.01){
+      line(lx[1]+.30,ly[1]+1.32,lx[1]+.06,ly[1]+.20,
+        {col:ROLE.loop,w:1.2,a:lab*.55});
+      text(lx[1]+.34,ly[1]+1.46,"the LLM's own trace",
+        {size:T.sm,col:ROLE.loop,a:lab,ha:'left'});
+    }
+  }
+
+  const p14=Math.min(seg(t,b14.start-.5,b14.start+.5,backOut),1);
+  if(p14>.01){
+    fadeText(lx[10]+.20,ly[10]+.20,'AssayLoop',p14,{size:T.body,col:ROLE.loop,ha:'left'});
+    fadeText(gx[10]+.20,gy[10]+.02,'Gemini 3.1 Pro',p14,{size:T.sm,col:ROLE.llm,ha:'left'});
+    fadeText(fx[10]+.20,fy[10]-.26,'AssayFormer',p14,{size:T.sm,col:ROLE.former,ha:'left'});
+    fadeText(0,3.72,'AssayLoop',p14,{size:T.title,col:ROLE.loop});
+  }
+}
+
+// -------------------------------------------------------------- scene 6 ---
+function sResult(t,B){
+  const [b15,b16,b17] = beatsOf('result');
+  const st=fio(t,b15.start-.2,b15.start+1.0,b16.start-1.0,b16.start-.3);
+  if(st>.01){
+    fadeText(0,3.45,'On 20 screens from the future',seg(t,b15.start,b15.start+1.1),
+      {size:T.sub,col:C.grey});
+    [['5.67×','better than random',ROLE.loop],
+     ['27.7%','of every hit found',ROLE.loop],
+     ['5%','of the library assayed',ROLE.accent]].forEach(([big,sub,col],i)=>{
+      const p=stag(i,3,t,b15.start+.9,b15.start+3.2,.42);
+      if(p<=.01) return;
+      const x=-4.35+i*4.35;
+      text(x,1.62,big,{size:86*PT,col,a:st*Math.min(p,1),
+        rise:.35*(1-backOut(Math.min(p,1)))});
+      text(x,.72,sub,{size:T.cap,col:C.grey,a:st*p});
+    });
+    const pb=seg(t,b15.start+3.4,b15.start+4.6);
+    if(pb>.01){
+      const bars=[['Random','random'],['Probability-of-hit','poh'],
+        ['Screen-kNN','screen_knn'],['BPMF','bpmf'],['Gemini 3.1 Pro','gemini'],
+        ['AssayFormer','assayformer'],['AssayLoop','assayloop']];
+      const x0=-1.75, y0=-3.30, bw=.32, gap=.42, maxw=5.7;
+      bars.forEach(([lb,key],i)=>{
+        const p=stag(i,bars.length,t,b15.start+3.5,b15.start+6.0,.7);
+        if(p<=.01) return;
+        const ef=D.ef[key], hero=['assayloop','assayformer','gemini'].includes(key);
+        const col=key==='assayloop'?ROLE.loop:key==='assayformer'?ROLE.former
+          :key==='gemini'?ROLE.llm:C.greyd;
+        const y=y0+i*gap, w=maxw*(ef/6)*p;
+        rect(x0+w/2,y,w,bw,{lw:0,fill:col,a:st*(hero?1:.55)});
+        text(x0-.16,y,lb,{size:T.tiny,col:hero?C.white:C.grey,a:st*p,ha:'right'});
+        text(x0+w+.16,y,ef.toFixed(2),{size:T.tiny,col,a:st*p,ha:'left'});
+      });
+      fadeText(x0,y0+bars.length*gap+.02,'enrichment factor',pb,
+        {size:T.sm,col:C.grey,ha:'left'});
+    }
+  }
+
+  const sc=fio(t,b16.start-.4,b16.start+.8,b17.start-.6,b17.start-.05);
+  if(sc>.01){
+    fadeText(0,3.45,'It improves from past experiments',seg(t,b16.start,b16.start+1.1),
+      {size:T.title});
+    const ax0=-4.6, ay0=-2.5, aw=9.2, ah=4.6;
+    const lg=D.scaling.map(([n])=>Math.log10(n));
+    const lo=Math.min(...lg), hi=Math.max(...lg);
+    const PXs=D.scaling.map(([n])=>ax0+aw*(Math.log10(n)-lo)/(hi-lo));
+    const PYs=D.scaling.map(([,e])=>ay0+ah*(e-1)/4);
+    line(ax0,ay0,ax0+aw,ay0,{a:sc}); line(ax0,ay0,ax0,ay0+ah,{a:sc});
+    for(const v of [1,2,3,4,5]){
+      const y=ay0+ah*(v-1)/4;
+      line(ax0,y,ax0-.10,y,{w:1.5,a:sc});
+      text(ax0-.28,y,v,{size:T.sm,col:C.grey,a:sc,ha:'right'});
+    }
+    for(const n of [1,10,100,1349]){
+      const x=ax0+aw*(Math.log10(n)-lo)/(hi-lo);
+      line(x,ay0,x,ay0-.10,{w:1.5,a:sc});
+      text(x,ay0-.34,n.toLocaleString(),{size:T.sm,col:C.grey,a:sc});
+    }
+    text(ax0+aw/2,ay0-.92,'training screens',{size:T.cap,col:C.grey,a:sc});
+    text(ax0-.95,ay0+ah/2,'EF',{size:T.cap,col:C.grey,a:sc,rot:90});
+    const pr=seg(t,b16.start+.6,b16.start+3.6,smoother);
+    path(PXs,PYs,pr,{col:ROLE.former,w:4,a:sc});
+    const nv=Math.round(pr*(PXs.length-1));
+    dots(PXs.slice(0,nv+1).map((x,i)=>[x,PYs[i]]),{r:5,col:ROLE.former,a:sc});
+    fadeText(PXs[PXs.length-1]-.10,PYs[PYs.length-1]+.46,'no sign of saturating',
+      seg(t,b16.start+3.4,b16.start+4.5)*sc,{size:T.cap,col:ROLE.former,ha:'right'});
+  }
+
+  const tc=seg(t,b17.start-.5,b17.start+.9,smoother);
+  if(tc>.01){
+    fadeText(0,1.55,'Biology in the loop',tc,{size:78*PT});
+    fadeText(0,.62,'Amortized Adaptive Hit Discovery in CRISPR Screens',
+      seg(t,b17.start-.2,b17.start+1.2),{size:T.sub,col:C.grey});
+    fadeText(0,-.60,'arXiv:2609.11877',seg(t,b17.start+.3,b17.start+1.5),
+      {size:T.body,col:ROLE.loop,font:'mono'});
+    fadeText(0,-1.28,'genentech.github.io/AssayLoop',seg(t,b17.start+.5,b17.start+1.7),
+      {size:T.cap,col:C.grey,font:'mono'});
+    fadeText(0,-1.95,'Try it on our website today',
+      seg(t,b17.start+1.4,b17.start+2.4),{size:T.sub,col:ROLE.loop});
+    fadeText(0,-2.75,'Edwards · De Brouwer · Li · Lee · Hajiramezanali\n'+
+      'Biton · Mostafavi · Scalia   —   Genentech',
+      seg(t,b17.start+.8,b17.start+2.0),{size:T.sm,col:C.greyd});
+  }
+}
+
+// ---------------------------------------------------------------- driver --
+const SCENES={intro:sIntro,screen:sScreen,hits:sHits,budget:sBudget,loop:sLoop,
+              curve:sCurve,llm:sLLM,former:sFormer,handoff:sHandoff,result:sResult};
+function sceneAt(t){ let s=BEATS[0].scene;
+  for(const b of BEATS) if(t>=b.start) s=b.scene; return s; }
+
+function frame(t){
+  g.fillStyle=C.bg; g.fillRect(0,0,1920,1080);
+  SCENES[sceneAt(t)](t,BEATS);
+  text(7.82,-4.34,'test split, n = 20 screens',
+    {size:11*PT,col:'#252B36',ha:'right',va:'bottom'});
+}
+
+const vo=document.getElementById('vo'), playBtn=document.getElementById('play');
+const scrub=document.getElementById('scrub'), clock=document.getElementById('clock');
+const capEl=document.getElementById('cap'), muteBtn=document.getElementById('mute');
+let playing=false, t=0, last=0, muted=false;
+
+const fmt=s=>`${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`;
+function captionAt(x){ for(const b of BEATS) if(x>=b.start-.2&&x<=b.end+.35) return b.say; return ''; }
+
+function render(){
+  frame(t);
+  scrub.value=t; clock.textContent=`${fmt(t)} / ${fmt(TOTAL)}`;
+  capEl.textContent=captionAt(t);
+  document.querySelectorAll('.chip').forEach(ch=>
+    ch.classList.toggle('on', ch.dataset.scene===sceneAt(t)));
+}
+function tick(now){
+  if(!playing) return;
+  // Audio is the clock whenever it is actually running, so picture cannot drift.
+  t = (!muted && !vo.paused && !vo.ended) ? vo.currentTime
+      : t + Math.min((now-last)/1000, .05);
+  last=now;
+  if(t>=TOTAL){ t=TOTAL; pause(); render(); return; }
+  render(); requestAnimationFrame(tick);
+}
+function play(){
+  if(t>=TOTAL) t=0;
+  playing=true; playBtn.textContent='Pause'; last=performance.now();
+  if(!muted){ vo.currentTime=t; vo.play().catch(()=>{}); }
+  requestAnimationFrame(tick);
+}
+function pause(){ playing=false; playBtn.textContent='Play'; vo.pause(); }
+playBtn.onclick=()=>playing?pause():play();
+muteBtn.onclick=()=>{ muted=!muted; muteBtn.textContent=muted?'Sound off':'Sound on';
+  if(muted) vo.pause(); else if(playing){ vo.currentTime=t; vo.play().catch(()=>{}); } };
+scrub.oninput=()=>{ t=parseFloat(scrub.value);
+  if(!muted) vo.currentTime=t; render(); };
+document.body.addEventListener('keydown',e=>{
+  if(e.code==='Space'){ e.preventDefault(); playing?pause():play(); }
+  if(e.code==='ArrowRight'){ t=Math.min(TOTAL,t+5); if(!muted) vo.currentTime=t; render(); }
+  if(e.code==='ArrowLeft'){ t=Math.max(0,t-5); if(!muted) vo.currentTime=t; render(); }
+});
+
+// scene jump chips
+const seen=[]; for(const b of BEATS) if(!seen.some(s=>s.scene===b.scene)) seen.push(b);
+const LABEL={intro:'The library',screen:'What is a screen?',hits:'What is a hit?',
+             budget:'The budget',loop:'The loop',curve:'Recovery curve',
+             llm:'LLM prior',former:'AssayFormer',handoff:'The handoff',
+             result:'Results'};
+const chips=document.getElementById('chips');
+for(const b of seen){
+  const el=document.createElement('button');
+  el.className='chip'; el.textContent=LABEL[b.scene]; el.dataset.scene=b.scene;
+  el.onclick=()=>{ t=b.start; if(!muted) vo.currentTime=t;
+    if(!playing) render(); };
+  chips.appendChild(el);
+}
+render();
+</script>

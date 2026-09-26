@@ -1,0 +1,11 @@
+# Generated artifacts. Rebuild with:
+#   uv run python animation/render.py && uv run python animation/build_web.py
+out/vo/
+out/stills/
+out/*.wav
+out/_silent.mp4
+out/contact_sheet.png
+out/mid.png
+out/fix.png
+out/render.log
+web/narration.mp3

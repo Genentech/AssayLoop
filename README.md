@@ -6,6 +6,16 @@ Code for **"Biology-in-the-loop: Amortized Adaptive Hit Discovery in CRISPR Scre
 
 [![Try it yourself](https://img.shields.io/badge/Try_it_yourself!-Run_AssayFormer_in_your_browser-176b87?style=for-the-badge)](https://genentech.github.io/AssayLoop/try.html)
 
+## News
+
+- **2026-09-26** — A 3-minute animated explainer is up:
+  [**Biology in the loop**](https://genentech.github.io/AssayLoop/explainer.html).
+  It walks through what a hit is, the recovery curve, why an LLM prior and a learned policy
+  fail in opposite directions, and what the k=3 handoff buys you. Plays in the browser with
+  narration; [MP4](https://genentech.github.io/AssayLoop/assets/explainer/assayloop-explainer.mp4)
+  and [subtitles](https://genentech.github.io/AssayLoop/assets/explainer/assayloop-explainer.srt)
+  are also available, and the source that generates it is in [`animation/`](animation/).
+
 ![The task: a screen is a library of genes, a phenotype and a hit set. Each round, a method
 sees the phenotype and everything it has already assayed, and chooses the next hundred
 genes.](docs/assets/figures/figure1.png?v=bb2ba228)

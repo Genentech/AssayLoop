@@ -1,0 +1,100 @@
+1
+00:00:00,000 --> 00:00:07,331
+A genome-wide CRISPR screen puts a question to every gene: is this gene a hit? There are twenty thousand candidate genes.
+
+2
+00:00:08,331 --> 00:00:14,508
+But what is a CRISPR screen? A screen tests which genes control a specific cellular behaviour or trait.
+
+3
+00:00:14,858 --> 00:00:26,288
+You set up an experiment. Say, neuroblastoma cells, and whether they resist iron-mediated cell death. Then you switch one gene off, or on, and see whether the outcome changed.
+
+4
+00:00:26,638 --> 00:00:31,838
+Do that across the whole genome, and you learn which genes control the behaviour you care about.
+
+5
+00:00:32,338 --> 00:00:42,900
+A few of those genes are hits. A hit is a gene where switching it off, or on, actually produces the effect you are looking for. In a typical screen, only one in a hundred are hits.
+
+6
+00:00:43,250 --> 00:00:47,827
+You do not know which ones they are. That is the whole point of running the screen.
+
+7
+00:00:48,327 --> 00:00:59,432
+But testing all of them is often out of reach. The readout is too slow, or too expensive. So you get a budget: one thousand genes, five percent of the library.
+
+8
+00:00:59,782 --> 00:01:01,402
+Which thousand should you pick?
+
+9
+00:01:02,052 --> 00:01:08,253
+You don't have to choose all at once. Spend the budget in rounds. One hundred genes, ten times.
+
+10
+00:01:08,603 --> 00:01:16,010
+After each round you learn which of those hundred were hits, and that answer can change what you pick next. That is the loop.
+
+11
+00:01:16,360 --> 00:01:26,718
+This is AssayBench-Loop: one thousand three hundred and eighty-nine real CRISPR screens, split by time. Train on the past, test on twenty screens from the future.
+
+12
+00:01:27,218 --> 00:01:35,462
+We can picture any strategy with a recovery curve: the fraction of all hits you have found, against the fraction of the library you have sampled.
+
+13
+00:01:35,812 --> 00:01:43,377
+Pick genes at random, and you find hits at exactly the rate you sample them. A straight line. That is the thing to beat.
+
+14
+00:01:43,877 --> 00:01:54,540
+One way to fill that first round is to ask a language model. It has read the literature, so it already has an opinion about which genes are plausible, before you measure anything.
+
+15
+00:01:55,490 --> 00:02:01,350
+And it works. Gemini three point one Pro finds hits at nearly five times the random rate.
+
+16
+00:02:01,700 --> 00:02:10,156
+But watch what happens as results come back. The curve flattens. The prior is strong. The learning from feedback is weak.
+
+17
+00:02:10,656 --> 00:02:22,615
+AssayFormer is the opposite animal. A transformer trained across all thirteen hundred historical screens. It takes the history as input: every gene tested so far, and whether it was a hit.
+
+18
+00:02:22,965 --> 00:02:28,213
+It starts colder. Before the first batch, it knows little about this particular screen.
+
+19
+00:02:28,563 --> 00:02:32,263
+But every round of feedback sharpens it, and it keeps climbing.
+
+20
+00:02:32,763 --> 00:02:41,560
+LLMs have a strong prior but weak adaptation. AssayFormer has a weak prior but strong adaptation. So use each one where it is best.
+
+21
+00:02:41,910 --> 00:02:49,264
+Let the language model drive the first three rounds. Then hand the accumulated history to AssayFormer, and let it run.
+
+22
+00:02:49,614 --> 00:02:51,033
+That is AssayLoop.
+
+23
+00:02:51,683 --> 00:03:00,545
+Five point seven times better than random. Twenty-seven point seven percent of hits in the screen are found by sampling only five percent of the library.
+
+24
+00:03:00,895 --> 00:03:08,632
+And because the policy is learned from past experiments, it improves as those accumulate, with no sign yet of saturating.
+
+25
+00:03:08,982 --> 00:03:12,589
+Biology in the loop. Try it on our website today!
+

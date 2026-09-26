@@ -23,14 +23,32 @@
   #stage{position:relative;width:100%;aspect-ratio:16/9;background:var(--bg);
     border:1px solid #1b2029;border-radius:10px;overflow:hidden}
   canvas{width:100%;height:100%;display:block;cursor:pointer}
-  /* Shown only when the browser refuses sound-on autoplay, which is the
-     common case on a first visit. The picture still runs underneath. */
-  #sound-prompt{position:absolute;left:50%;bottom:22px;transform:translateX(-50%);
-    background:rgba(11,14,19,.86);border:1px solid var(--green);color:var(--green);
-    border-radius:24px;padding:10px 20px;font:inherit;font-size:15px;cursor:pointer;
-    backdrop-filter:blur(3px)}
-  #sound-prompt:hover{background:rgba(131,193,103,.16)}
-  #sound-prompt[hidden]{display:none}
+  /* Coachmark, shown only when the browser refuses sound-on autoplay --
+     the usual case on a first desktop visit. Mirrors the guided-tour
+     pattern on try.html, restyled for this page's dark ground. */
+  #coach-scrim{position:fixed;inset:0;z-index:90;background:rgba(4,6,10,.62);
+    backdrop-filter:blur(1px)}
+  #coach-scrim[hidden],#coach[hidden]{display:none}
+  #coach{position:fixed;z-index:110;width:min(330px,calc(100vw - 24px));
+    padding:18px 20px 16px;border:1px solid #3c5a3a;border-radius:10px;
+    background:#121821;box-shadow:0 18px 48px rgba(0,0,0,.55)}
+  #coach h2{margin:2px 0 7px;font-size:19px;color:var(--white)}
+  #coach p{margin:0;font-size:14px;line-height:1.5;color:var(--grey)}
+  #coach .kicker{margin:0 0 4px;font-size:11.5px;font-weight:750;
+    letter-spacing:.07em;text-transform:uppercase;color:var(--green)}
+  #coach .row{display:flex;justify-content:flex-end;gap:8px;margin-top:15px}
+  #coach button{font-size:14px}
+  #coach-go{background:#1d3324;border-color:var(--green);color:var(--green)}
+  #coach-go:hover{background:#24422c}
+  #coach-arrow{position:absolute;width:15px;height:15px;background:#121821;
+    transform:rotate(45deg)}
+  #coach[data-placement="bottom"] #coach-arrow{top:-8px;
+    border-top:1px solid #3c5a3a;border-left:1px solid #3c5a3a}
+  #coach[data-placement="top"] #coach-arrow{bottom:-8px;
+    border-right:1px solid #3c5a3a;border-bottom:1px solid #3c5a3a}
+  .coach-target{position:relative;z-index:100;
+    outline:3px solid var(--green);outline-offset:4px;
+    box-shadow:0 0 0 9px rgba(131,193,103,.20)}
   #cap{min-height:2.6em;margin:14px 2px 0;color:var(--grey);font-size:17px;
     line-height:1.45;text-align:center}
   #bar{display:flex;align-items:center;gap:14px;margin-top:14px}
@@ -50,10 +68,7 @@
 </style>
 
 <div id="wrap">
-  <div id="stage">
-    <canvas id="c" width="1920" height="1080"></canvas>
-    <button id="sound-prompt" hidden>🔊&nbsp; Click for sound</button>
-  </div>
+  <div id="stage"><canvas id="c" width="1920" height="1080"></canvas></div>
   <div id="cap"></div>
   <div id="bar">
     <button id="play">Play</button>
@@ -74,6 +89,19 @@
     proportion to the fraction of the library queried &mdash; not a measured run.
   </footer>
 </div>
+
+<div id="coach-scrim" hidden></div>
+<aside id="coach" role="dialog" aria-labelledby="coach-title" hidden>
+  <span id="coach-arrow" aria-hidden="true"></span>
+  <p class="kicker">One click to start</p>
+  <h2 id="coach-title">Press play</h2>
+  <p>Your browser blocked autoplay with sound, so the explainer is waiting.
+     Hit play to watch it with narration.</p>
+  <div class="row">
+    <button id="coach-skip">Dismiss</button>
+    <button id="coach-go">▶&nbsp; Play with sound</button>
+  </div>
+</aside>
 
 <audio id="vo" src="__AUDIO__" preload="auto"></audio>
 
@@ -802,7 +830,9 @@ function frame(t){
 const vo=document.getElementById('vo'), playBtn=document.getElementById('play');
 const scrub=document.getElementById('scrub'), clock=document.getElementById('clock');
 const capEl=document.getElementById('cap'), muteBtn=document.getElementById('mute');
-const prompt_=document.getElementById('sound-prompt');
+const scrim=document.getElementById('coach-scrim');
+const coach=document.getElementById('coach');
+const coachArrow=document.getElementById('coach-arrow');
 let playing=false, t=0, last=0, muted=false;
 
 const fmt=s=>`${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`;
@@ -834,35 +864,64 @@ function beginLoop(){
   playing=true; playBtn.textContent='Pause'; last=performance.now();
   requestAnimationFrame(tick);
 }
-function enableSound(){
-  muted=false; muteBtn.textContent='Sound on'; prompt_.hidden=true;
-  vo.currentTime=t; vo.play().catch(()=>{});
+
+// --- coachmark: point at the play button when autoplay is refused ---------
+function placeCoach(){
+  const tg=playBtn.getBoundingClientRect(), pop=coach.getBoundingClientRect();
+  const margin=12, gap=16;
+  const below = window.innerHeight - tg.bottom >= pop.height + gap + margin;
+  const left=Math.max(margin, Math.min(tg.left + tg.width/2 - pop.width/2,
+                                       window.innerWidth - pop.width - margin));
+  const top = below ? tg.bottom + gap : tg.top - pop.height - gap;
+  coach.dataset.placement = below ? 'bottom' : 'top';
+  coach.style.left = left + 'px';
+  coach.style.top = Math.max(margin,
+    Math.min(top, window.innerHeight - pop.height - margin)) + 'px';
+  coachArrow.style.left =
+    Math.max(18, Math.min(tg.left + tg.width/2 - left - 7, pop.width - 34)) + 'px';
 }
+function showCoach(){
+  scrim.hidden=false; coach.hidden=false;      // unhide first so it measures
+  playBtn.classList.add('coach-target');
+  placeCoach();
+  window.addEventListener('resize', placeCoach);
+  window.addEventListener('scroll', placeCoach, {passive:true});
+}
+function hideCoach(){
+  if(coach.hidden) return;
+  scrim.hidden=true; coach.hidden=true;
+  playBtn.classList.remove('coach-target');
+  window.removeEventListener('resize', placeCoach);
+  window.removeEventListener('scroll', placeCoach);
+}
+
 // Arriving here is a deliberate click on "watch the explainer", so start
-// immediately. A link click is not a user gesture on the *next* page, so
-// sound-on autoplay is usually refused on a first visit; when it is, run the
-// picture anyway and offer sound rather than showing a dead frame.
+// immediately. But a link click is not a user gesture on the page it
+// navigates to, so browsers usually refuse sound-on autoplay on a first
+// visit. Rather than run the picture silently -- easy to mistake for the
+// whole thing being broken -- hold at the first frame and point at play.
 function autostart(){
   if(window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
   t=0; vo.currentTime=0;
   const p=vo.play();
   if(p && p.then) p.then(()=>{ muted=false; muteBtn.textContent='Sound on';
                                beginLoop(); })
-                   .catch(()=>{ muted=true; muteBtn.textContent='Sound off';
-                                prompt_.hidden=false; beginLoop(); });
+                   .catch(showCoach);
   else beginLoop();
 }
 function pause(){ playing=false; playBtn.textContent='Play'; vo.pause(); }
-playBtn.onclick=()=>playing?pause():play();
-prompt_.onclick=enableSound;
-// Clicking the picture turns sound on if it was refused, otherwise toggles.
-cv.onclick=()=>{ if(!prompt_.hidden) enableSound(); else playing?pause():play(); };
+playBtn.onclick=()=>{ hideCoach(); playing?pause():play(); };
+document.getElementById('coach-go').onclick=()=>{ hideCoach(); play(); };
+document.getElementById('coach-skip').onclick=hideCoach;
+scrim.onclick=hideCoach;
+cv.onclick=()=>{ hideCoach(); playing?pause():play(); };
 muteBtn.onclick=()=>{ muted=!muted; muteBtn.textContent=muted?'Sound off':'Sound on';
   if(muted) vo.pause(); else if(playing){ vo.currentTime=t; vo.play().catch(()=>{}); } };
 scrub.oninput=()=>{ t=parseFloat(scrub.value);
   if(!muted) vo.currentTime=t; render(); };
 document.body.addEventListener('keydown',e=>{
-  if(e.code==='Space'){ e.preventDefault(); playing?pause():play(); }
+  if(e.code==='Escape') hideCoach();
+  if(e.code==='Space'){ e.preventDefault(); hideCoach(); playing?pause():play(); }
   if(e.code==='ArrowRight'){ t=Math.min(TOTAL,t+5); if(!muted) vo.currentTime=t; render(); }
   if(e.code==='ArrowLeft'){ t=Math.max(0,t-5); if(!muted) vo.currentTime=t; render(); }
 });

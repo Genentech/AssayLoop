@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
 <title>AssayLoop: Amortized Adaptive Hit Discovery in CRISPR Screens</title>
 <meta name="description" content="AssayLoop combines language-model biological priors with an amortized acquisition policy for adaptive hit discovery, reaching 5.67-fold enrichment and recovering 27.7% of hits at approximately 5% of the candidate library."/>
-<link rel="stylesheet" href="assets/css/site.css?v=d3b20dd5"/>
+<link rel="stylesheet" href="assets/css/site.css?v=ce86ddc2"/>
 <script src="https://cdn.plot.ly/plotly-2.32.0.min.js" charset="utf-8"></script>
 </head>
 <body>
@@ -36,6 +36,17 @@
       <a class="badge alt-4" href="https://huggingface.co/collections/Genentech/assaybench"><span>🤗</span> Models &amp; data</a>
       <a class="badge alt-3" href="cite.html"><span>📚</span> Citation</a>
     </div>
+
+    <a class="explainer-teaser" href="explainer.html">
+      <img src="assets/explainer/poster-960.png" width="960" height="540"
+           alt="Title card for the AssayLoop explainer: recovery curves for AssayLoop, Gemini 3.1 Pro
+                and AssayFormer against the random expectation line, with the k=3 handoff marked."/>
+      <div class="teaser-bar">
+        <strong>Biology in the loop</strong>
+        <span>An animated walkthrough: what a screen is, what a hit is, and why the handoff works.</span>
+        <span class="cta">Watch · 3 min 14 s →</span>
+      </div>
+    </a>
 
     <div class="landing-intro-row">
       <div class="callout">
@@ -183,19 +194,13 @@
     <hr class="section-divider"/>
 
     <h2>Explore</h2>
-
-    <a class="explainer-teaser" href="explainer.html">
-      <img src="assets/explainer/poster-960.png" width="960" height="540" loading="lazy"
-           alt="Title card for the AssayLoop explainer: recovery curves for AssayLoop, Gemini 3.1 Pro
-                and AssayFormer against the random expectation line, with the k=3 handoff marked."/>
-      <div class="teaser-bar">
-        <strong>Biology in the loop</strong>
-        <span>An animated walkthrough: what a screen is, what a hit is, and why the handoff works.</span>
-        <span class="cta">Watch · 3 min 14 s →</span>
-      </div>
-    </a>
-
     <div class="feature-grid">
+      <a class="feature-card" href="explainer.html">
+        <div class="feature-kicker">Video</div>
+        <h3>Watch the explainer</h3>
+        <p>Three minutes on what a screen is, what a hit is, and why the handoff works.</p>
+        <div class="feature-cta">Watch the explainer →</div>
+      </a>
       <a class="feature-card" href="results.html">
         <div class="feature-kicker">Table</div>
         <h3>Full results</h3>
@@ -284,7 +289,7 @@ assayloop run --screen-set paper_test --model assayformer</pre>
 </main>
 
 <div id="site-footer"></div>
-<script src="assets/js/site.js?v=d2a4f63f" data-build="4bc6f836"></script>
+<script src="assets/js/site.js?v=710c3b9e" data-build="4bc6f836"></script>
 <script src="assets/js/index.js?v=6eac7e27"></script>
 <script src="assets/js/hero.js?v=36f6a8b3"></script>
 </body>

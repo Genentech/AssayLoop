@@ -6,6 +6,8 @@ Code for **"Biology-in-the-loop: Amortized Adaptive Hit Discovery in CRISPR Scre
 
 [![Try it yourself](https://img.shields.io/badge/Try_it_yourself!-Run_AssayFormer_in_your_browser-176b87?style=for-the-badge)](https://genentech.github.io/AssayLoop/try.html)
 
+[![Biology in the loop - a three minute animated explainer of the paper](docs/assets/explainer/poster-960.png)](https://genentech.github.io/AssayLoop/explainer.html)
+
 ## News
 
 - **2026-09-26** — A 3-minute animated explainer is up:

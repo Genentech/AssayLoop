@@ -8,6 +8,7 @@
 (function () {
   const NAV_LINKS = [
     { href: "index.html", label: "Overview", match: ["", "index.html"] },
+    { href: "explainer.html", label: "Video Explainer", match: ["explainer.html"] },
     { href: "method.html", label: "Method", match: ["method.html"] },
     { href: "results.html", label: "Results", match: ["results.html"] },
     { href: "recovery.html", label: "Recovery curves", match: ["recovery.html"] },

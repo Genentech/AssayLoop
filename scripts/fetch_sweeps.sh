@@ -35,8 +35,8 @@
 #
 # These runs executed behind an internal gateway. API keys, internal
 # hostnames and internal filesystem paths were replaced with placeholders
-# (sk-REDACTED, redacted-internal-host.invalid) before publication. No
-# metric, acquired-gene list, prompt or model output was altered. See
+# (sk-REDACTED, redacted-internal-host.invalid) before publication. Research text is preserved
+# except for these redactions. See
 # scripts/build_sweep_bundle.py.
 #
 # Default target: $ASSAYLOOP_PUBLISHED, falling back to <repo>/output/published
@@ -57,7 +57,7 @@ for arg in "$@"; do
     --force)           FORCE=1 ;;
     --with-llm-calls)  WITH_CALLS=1 ;;
     --without-llm-calls) WITH_CALLS=0 ;;
-    -h|--help)         sed -n '2,45p' "${BASH_SOURCE[0]}" | sed 's/^# \?//'; exit 0 ;;
+    -h|--help)         sed -n '2,45p' "${BASH_SOURCE[0]}" | sed 's/^#//; s/^ //'; exit 0 ;;
     *) echo "unknown argument: $arg (try --help)" >&2; exit 2 ;;
   esac
 done
@@ -65,31 +65,25 @@ done
 # Unlike the gene-set assets, these archives are immutable release artifacts,
 # so a sha256 mismatch is an error rather than a warning: it means you did not
 # get the bytes the paper was computed from.
-declare -A URLS=(
-  ["assayloop-sweeps-v1.tar.gz"]="$BASE/assayloop-sweeps-v1.tar.gz"
-  ["assayloop-llm-calls-v1.tar.gz"]="$BASE/assayloop-llm-calls-v1.tar.gz"
-)
-
-declare -A EXPECTED=(
-  ["assayloop-sweeps-v1.tar.gz"]="1073e6f543e278134d5b3bc1d41d1181e610157aad16053d7c8e44172181e50f"
-  ["assayloop-llm-calls-v1.tar.gz"]="c36fc84ce2358c5a1dccecf9e4995328faf58d93e864c52c4ce5b4cd3169f3c7"
-)
-
-# A sentinel path per archive: present => already unpacked. The two archives
-# merge into one runs/ tree (result.json from one, llm_calls.jsonl from the
-# other), so each needs a marker the other does not also create.
-declare -A SENTINEL=(
-  ["assayloop-sweeps-v1.tar.gz"]="MANIFEST.json"
-  ["assayloop-llm-calls-v1.tar.gz"]="MANIFEST-llm-calls.json"
-)
+# Positional arguments keep this compatible with macOS's default Bash 3.2.
+checksum() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1" | cut -d' ' -f1
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$1" | cut -d' ' -f1
+  else
+    echo "ERROR: install sha256sum or shasum to verify release archives." >&2
+    return 1
+  fi
+}
 
 mkdir -p "$TARGET"
 echo "Fetching published sweeps into: $TARGET"
 
-fetch_and_unpack() {
+fetch_and_unpack() (
   local name="$1"
-  local want="${EXPECTED[$name]}"
-  local sentinel="$TARGET/${SENTINEL[$name]}"
+  local want="$2"
+  local sentinel="$TARGET/$3"
 
   if [[ -e "$sentinel" && $FORCE -eq 0 ]]; then
     echo "  [skip] $name already unpacked"
@@ -98,13 +92,17 @@ fetch_and_unpack() {
 
   local tmp
   tmp="$(mktemp -d)"
-  trap 'rm -rf "$tmp"' RETURN
+  trap 'rm -rf "$tmp"' EXIT
 
   echo "  [get ] $name"
-  curl -fsSL -o "$tmp/$name" "${URLS[$name]}"
+  if ! curl -fsSL -o "$tmp/$name" "$BASE/$name"; then
+    echo "ERROR: could not download $BASE/$name" >&2
+    echo "Check https://github.com/Genentech/AssayLoop/releases/tag/data-v1 or set ASSAYLOOP_BUNDLE_URL to a published mirror." >&2
+    return 1
+  fi
 
   local got
-  got="$(sha256sum "$tmp/$name" | cut -d' ' -f1)"
+  got="$(checksum "$tmp/$name")"
   if [[ "$got" != "$want" ]]; then
     echo "  ERROR: sha256 mismatch for $name" >&2
     echo "         expected $want" >&2
@@ -118,11 +116,13 @@ fetch_and_unpack() {
   # results_index.py scans.
   tar xzf "$tmp/$name" -C "$TARGET" --strip-components=1
   echo "         -> unpacked"
-}
+)
 
-fetch_and_unpack "assayloop-sweeps-v1.tar.gz"
+fetch_and_unpack "assayloop-sweeps-v1.tar.gz" \
+  "587d6b492c1e0b8b83e6ed7a6834e4732f11dd6f1654bb3a030e5feec05c6395" "MANIFEST.json"
 if [[ $WITH_CALLS -eq 1 ]]; then
-  fetch_and_unpack "assayloop-llm-calls-v1.tar.gz"
+  fetch_and_unpack "assayloop-llm-calls-v1.tar.gz" \
+    "05f5a0522b8a7950f86652660ca2d937793849e52b819eeb40b9cfffa369b208" "MANIFEST-llm-calls.json"
 else
   echo "  [skip] assayloop-llm-calls-v1.tar.gz (exact raw-response replay unavailable)"
 fi

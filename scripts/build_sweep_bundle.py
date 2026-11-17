@@ -53,7 +53,7 @@ USAGE
     python scripts/build_sweep_bundle.py --out dist/ --with-llm-calls ...
 
 Roots may also come from ``ASSAYLOOP_RESULTS`` / ``ASSAYLOOP_SHARED_PATH``.
-The printed sha256 goes into ``scripts/fetch_sweeps.sh``'s EXPECTED map.
+The printed sha256 goes into the pinned archive arguments in ``scripts/fetch_sweeps.sh``.
 """
 
 from __future__ import annotations
@@ -163,6 +163,43 @@ def scrub_obj(obj, counter: dict[str, int]):
     return obj
 
 
+PROTECTED_FIELDS = {"acquired_batch", "new_observations", "metrics", "final_metrics", "aggregate"}
+
+
+def verify_redaction(original, cleaned, audit: dict[str, int]) -> None:
+    """Refuse changed scientific results or changed parsed response gene lists."""
+    if isinstance(original, dict):
+        for key, value in original.items():
+            clean_key = scrub_obj(key, {})
+            other = cleaned[clean_key]
+            if key in PROTECTED_FIELDS:
+                if value != other:
+                    raise ValueError(f"redaction changed protected field {key}")
+                audit["protected_fields_verified"] = audit.get("protected_fields_verified", 0) + 1
+            if key == "response_text" and isinstance(value, str):
+                if value != other:
+                    from assayloop.llm.parse_genes import extract_gene_list
+                    if extract_gene_list(value) != extract_gene_list(other):
+                        raise ValueError("redaction changed parsed response genes; inspect privately")
+                audit["response_fields_verified"] = audit.get("response_fields_verified", 0) + 1
+            verify_redaction(value, other, audit)
+    elif isinstance(original, list):
+        if len(original) != len(cleaned):
+            raise ValueError("redaction changed list length")
+        for value, other in zip(original, cleaned):
+            verify_redaction(value, other, audit)
+    elif isinstance(original, str) and original != cleaned:
+        audit["redacted_string_values"] = audit.get("redacted_string_values", 0) + 1
+    elif not isinstance(original, str) and original is not cleaned and original != cleaned:
+        raise ValueError("redaction changed a numeric/boolean/null value")
+
+
+def checked_scrub(obj, counts, audit):
+    cleaned = scrub_obj(obj, counts)
+    verify_redaction(obj, cleaned, audit)
+    return cleaned
+
+
 def deny_scan_tree(obj, where: str, path: str = "") -> list[str]:
     """Structural check: no credential key may carry a surviving value.
 
@@ -175,10 +212,10 @@ def deny_scan_tree(obj, where: str, path: str = "") -> list[str]:
             sub = f"{path}/{k}"
             if (isinstance(k, str) and CREDENTIAL_KEYS.match(k)
                     and isinstance(v, str) and v not in ("", REDACTED)):
-                problems.append(f"{where}: credential key {sub} = {v[:40]!r}")
+                problems.append(f"{where}: populated credential key {sub}")
             problems.extend(deny_scan_tree(v, where, sub))
     elif isinstance(obj, list):
-        for i, v in enumerate(obj[:200]):
+        for i, v in enumerate(obj):
             problems.extend(deny_scan_tree(v, where, f"{path}[{i}]"))
     return problems
 
@@ -189,10 +226,7 @@ def deny_scan(data: bytes, where: str) -> list[str]:
     for name, rx in DENY_PATTERNS:
         hits = rx.findall(data)
         if hits:
-            sample = (hits[0] if isinstance(hits[0], bytes) else hits[0][0])
-            problems.append(
-                f"{where}: {name} x{len(hits)} "
-                f"(e.g. {sample.decode('utf8', 'replace')[:60]!r})")
+            problems.append(f"{where}: {name} x{len(hits)} (value withheld)")
     return problems
 
 
@@ -200,7 +234,7 @@ def deny_scan(data: bytes, where: str) -> list[str]:
 # Discovery
 # ---------------------------------------------------------------------------
 
-def required_sweep_ids() -> list[tuple[str, str]]:
+def required_sweep_ids(roots: list[Path] | None = None) -> list[tuple[str, str]]:
     """Resolve (sweep_id, label) for every sweep the table cannot regenerate.
 
     Derived from ``full_genome_table``'s own method tables so the bundle stays
@@ -210,6 +244,8 @@ def required_sweep_ids() -> list[tuple[str, str]]:
     from assayloop.scripts import full_genome_table as F
     from assayloop.scripts import results_index as R
 
+    if roots is not None:
+        R.SWEEP_DIRS = [root / "sweeps" for root in roots]
     index = R.load_sweep_index(R._load_all_sweeps())
     found: dict[str, str] = {}
     unresolved: list[str] = []
@@ -285,7 +321,7 @@ def build(args) -> int:
     if not roots:
         raise SystemExit("no readable result roots; pass --results / --shared")
 
-    sweeps = required_sweep_ids()
+    sweeps = required_sweep_ids(roots)
     print(f"required sweeps: {len(sweeps)}")
 
     stage = Path(args.out) / f"assayloop-sweeps-{BUNDLE_VERSION}"
@@ -301,6 +337,7 @@ def build(args) -> int:
         calls_stage.mkdir(parents=True)
 
     scrub_counts: dict[str, int] = {}
+    audit: dict[str, int] = {}
     violations: list[str] = []
     hashes: dict[str, str] = {}
     entries = []
@@ -316,7 +353,7 @@ def build(args) -> int:
 
         bytes_sweeps += write_json(
             stage / "sweeps" / sweep_id / "sweep.json",
-            scrub_obj(sweep, scrub_counts), hashes, violations,
+            checked_scrub(sweep, scrub_counts, audit), hashes, violations,
         )
 
         kept = []
@@ -330,7 +367,7 @@ def build(args) -> int:
             result = json.loads((rd / "result.json").read_text())
             bytes_sweeps += write_json(
                 stage / "runs" / run_id / "result.json",
-                scrub_obj(result, scrub_counts), hashes, violations,
+                checked_scrub(result, scrub_counts, audit), hashes, violations,
             )
             kept.append(run_id)
             n_runs += 1
@@ -338,12 +375,18 @@ def build(args) -> int:
             if calls_stage is not None:
                 src = rd / "llm_calls.jsonl"
                 if not src.is_file():
+                    acq = str(sweep.get("config", {}).get("acq", ""))
+                    if acq.startswith("llm"):
+                        raise SystemExit(
+                            f"missing llm_calls.jsonl for {run_id}; "
+                            "refusing incomplete raw-response replay bundle"
+                        )
                     continue
                 lines = []
                 for line in src.read_text().splitlines():
                     if not line.strip():
                         continue
-                    rec = scrub_obj(json.loads(line), scrub_counts)
+                    rec = checked_scrub(json.loads(line), scrub_counts, audit)
                     violations.extend(
                         deny_scan_tree(rec, f"{run_id}/llm_calls.jsonl"))
                     lines.append(json.dumps(rec, separators=(",", ":")))
@@ -359,10 +402,10 @@ def build(args) -> int:
         entries.append({
             "sweep_id": sweep_id,
             "label": label,
-            "display_name": sweep.get("display_name"),
-            "model": sweep.get("config", {}).get("model"),
-            "acq": sweep.get("config", {}).get("acq"),
-            "tag": sweep.get("config", {}).get("tag"),
+            "display_name": scrub_obj(sweep.get("display_name"), scrub_counts),
+            "model": scrub_obj(sweep.get("config", {}).get("model"), scrub_counts),
+            "acq": scrub_obj(sweep.get("config", {}).get("acq"), scrub_counts),
+            "tag": scrub_obj(sweep.get("config", {}).get("tag"), scrub_counts),
             "n_runs": len(kept),
             "run_ids": kept,
         })
@@ -392,6 +435,7 @@ def build(args) -> int:
         print(f"  {n:7d}  {pat}")
 
     manifest = {
+        "redaction_checks": audit,
         "schema": 1,
         "bundle": f"assayloop-sweeps-{BUNDLE_VERSION}",
         "description": (
@@ -437,6 +481,8 @@ def build(args) -> int:
                 "of model behaviour."
             ),
             "n_runs": n_calls,
+            "redaction_checks": audit,
+            "redaction": "Credential, host and path redactions only; historical prompts are not rewritten. Parsed response genes verified unchanged.",
         }, indent=2) + "\n")
         cpath = out_dir / CALLS_ARCHIVE
         _tar(calls_stage, cpath)
@@ -445,7 +491,7 @@ def build(args) -> int:
               f"{cpath.stat().st_size/1e6:.1f} MB gz")
         print(f"  sha256 {sha256_file(cpath)}")
 
-    print("\nPut those sha256 values in scripts/fetch_sweeps.sh EXPECTED.")
+    print("\nPut those sha256 values in the scripts/fetch_sweeps.sh calls.")
     return 0
 
 
@@ -508,8 +554,8 @@ retired, and cannot be regenerated by a reader at any reasonable cost.
 
 These runs executed behind an internal gateway. API keys, internal hostnames
 and internal filesystem paths have been replaced with placeholders such as
-`sk-REDACTED` and `redacted-internal-host.invalid`. No metric, acquired-gene
-list, prompt or model output was altered. The build refuses to produce an
+`sk-REDACTED` and `redacted-internal-host.invalid`. Metrics and acquired-gene lists are preserved. Research text is retained except
+for the redactions above. The build refuses to produce an
 archive if any known secret pattern survives.
 """
 

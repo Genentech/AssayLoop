@@ -1,0 +1,17 @@
+name: Release portability
+on: [push, pull_request]
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.11"
+      - run: uv sync --extra torch
+      - run: uv run pytest
+      - run: uv run ruff check --select F src scripts tests
+      - run: bash -n scripts/fetch_sweeps.sh

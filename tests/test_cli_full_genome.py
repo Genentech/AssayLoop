@@ -9,7 +9,7 @@ def test_open_vocab_llm_defaults_to_shared_f2_universe(monkeypatch):
     captured = {}
 
     def fake_load_screens(*, target_set, dataset_names=None):
-        assert target_set == "public"
+        assert target_set == "paper_test"
         assert dataset_names is None
         return [
             SimpleNamespace(genes=["A", "B"]),

@@ -68,6 +68,10 @@ uv sync --extra torch      # + AssayFormer (train-ranker / eval-ranker) and the 
 `torch` is a 500 MB+ install and every module that needs it imports it lazily, which is why
 it is opt-in. Nothing else is gated.
 
+The Torch extra uses CUDA 12.8 wheels on Linux/Windows and the PyPI build on
+macOS (CPU/MPS). The sweep downloader supports Bash 3.2 and uses either
+`sha256sum` or macOS's `shasum -a 256` for checksum verification.
+
 **No credentials are required** to run the offline parts, and none are required to reproduce
 the AssayFormer numbers: every public screen description ships pre-embedded (see
 [Text embeddings](#text-embeddings)). You need an API key only for the LLM baselines, and
@@ -374,8 +378,9 @@ A dash in a results table reads as "we measured nothing here", not "you did not 
 data".
 
 The bundle's runs executed behind an internal gateway, so API keys, internal hostnames and
-internal filesystem paths were replaced with placeholders before publication. No metric,
-acquired-gene list, prompt or model output was altered. `scripts/build_sweep_bundle.py` does
+internal filesystem paths were replaced with placeholders before publication. Metrics
+and acquired-gene lists are preserved. Historical prompts and outputs are
+retained except for those redactions. `scripts/build_sweep_bundle.py` does
 the redaction and refuses to write an archive that still trips its own secret scan;
 `MANIFEST.json` inside the bundle maps every sweep to the table row it backs.
 
